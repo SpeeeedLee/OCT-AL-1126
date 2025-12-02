@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from classification.data import get_data, get_num_train
+from classification.utils.data import get_data, get_num_train
 from model import get_resnet18_classifier, train_model, train_model_w_sam
 
 from feature_extract.util import ResNetSimCLR 

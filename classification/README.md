@@ -1,7 +1,5 @@
 # Classification
 
-## 1126
-
 
 ## Full data training
 ```bash
