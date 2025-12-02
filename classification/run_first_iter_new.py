@@ -71,7 +71,7 @@ def main():
     #     args.batch_size = 4
     # else:
     #     args.batch_size = 8
-    args.batch_size = 16
+    args.batch_size = 16 # fix batch size to 16!
     
     # Generate file name
     file_name = f"random{args.seed}_lr{args.lr}_bs{args.batch_size}"
