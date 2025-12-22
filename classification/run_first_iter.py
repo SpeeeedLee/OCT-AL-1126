@@ -26,9 +26,8 @@ def parse_arguments():
     parser.add_argument('--exp_path', type=str, default='./exp_results')   
     parser.add_argument('--epoch', type=int, default=20)   
     parser.add_argument('--lr', type=float, default=5e-5) 
-    parser.add_argument('--weight_decay', type=float, default=None)   
-    parser.add_argument('--no_use_pretrained', dest='use_pretrained', action='store_false', default=True)
-    parser.add_argument('--pretrained_weights', type=str, choices=['simclr', 'auto_encoder'], default=None)   
+    parser.add_argument('--weight_decay', type=float, default=None)
+    parser.add_argument('--pretrained_weights', type=str, choices=['random', 'imagenet', 'simclr', 'auto_encoder'], default=None, required=True)   
     parser.add_argument('--simclr_path', type=str, default=None)
     parser.add_argument('--ask_saving', action='store_true', default=False)
     parser.add_argument('--no_data_aug', dest='data_aug', action='store_false', default=True)
@@ -52,23 +51,75 @@ def initialize_simclr_model(num_classes, simclr_path):
     model.backbone.fc = nn.Linear(in_features, num_classes, bias=True)
     return model
 
-# def initialize_ae_model(num_classes, ae_path):
-#     from SSL.auto_encoder.classes.resnet_autoencoder import AE
-    
-#     ae = AE('default')
-#     ckpt = torch.load('./SSL/auto_encoder/autoencoder_1.ckpt', map_location='cpu')
-#     state_dict = ckpt.get('model_state_dict', ckpt)
-#     ae.load_state_dict(state_dict, strict=False)
-    
-#     encoder = ae.encoder
-#     model = nn.Sequential(
-#         encoder,
-#         nn.AdaptiveAvgPool2d((1, 1)),
-#         nn.Flatten(),
-#         nn.Linear(512, num_classes, bias=True)
-#     )
-#     return model
 
+def save_compact_json(data, file_path):
+    """Save JSON with compact list formatting"""
+    def format_dict(d, indent=0):
+        lines = []
+        items = list(d.items())
+        for i, (key, value) in enumerate(items):
+            is_last = (i == len(items) - 1)
+            comma = '' if is_last else ','
+            
+            if isinstance(value, dict):
+                lines.append('  ' * indent + f'"{key}": {{')
+                lines.append(format_dict(value, indent + 1))
+                lines.append('  ' * indent + '}' + comma)
+            elif isinstance(value, list):
+                # Keep list on single line
+                list_str = '[' + ', '.join(str(x) for x in value) + ']'
+                lines.append('  ' * indent + f'"{key}": {list_str}' + comma)
+            else:
+                lines.append('  ' * indent + f'"{key}": {json.dumps(value)}' + comma)
+        
+        return '\n'.join(lines)
+    
+    json_str = '{\n' + format_dict(data, 1) + '\n}'
+    
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(json_str)
+
+def check_existing_results(file_path, aug_key, portion_key, lr_key, max_runs=5):
+    """
+    Check if the experiment has already been run enough times.
+    Raises an error if the result list already has max_runs or more entries.
+    """
+    if not os.path.isfile(file_path):
+        print(f"No existing results file found at {file_path}")
+        return
+    
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Warning: JSON decode error in {file_path}: {e}")
+        return
+    
+    # Navigate through the nested structure
+    if aug_key in data:
+        if portion_key in data[aug_key]:
+            if lr_key in data[aug_key][portion_key]:
+                existing_results = data[aug_key][portion_key][lr_key]
+                num_existing = len(existing_results)
+                
+                if num_existing >= max_runs:
+                    raise RuntimeError(
+                        f"\n{'='*60}\n"
+                        f"Experiment already completed!\n"
+                        f"Configuration: aug={aug_key}, portion={portion_key}, lr={lr_key}\n"
+                        f"Existing results: {existing_results}\n"
+                        f"Number of runs: {num_existing}/{max_runs}\n"
+                        f"File: {file_path}\n"
+                        f"{'='*60}\n"
+                    )
+                else:
+                    print(f"Found {num_existing}/{max_runs} existing results for this configuration")
+            else:
+                print(f"No results found for lr={lr_key}")
+        else:
+            print(f"No results found for portion={portion_key}")
+    else:
+        print(f"No results found for aug_key={aug_key}")
 
 def main():
     args = parse_arguments()
@@ -81,22 +132,37 @@ def main():
     }
     num_classes, data_dir = task_config[args.task_type]
     
-    # Auto-adjust batch size
-    # if args.portion <= 20:
-    #     args.batch_size = 2
-    # elif args.portion <= 60:
-    #     args.batch_size = 4
-    # else:
-    #     args.batch_size = 8
+    # Fix batch size to 16
     args.batch_size = 16
     
     # Generate file name
-    file_name = f"random{args.seed}_lr{args.lr}_bs{args.batch_size}"
+    file_name = f"random{args.seed}_bs{args.batch_size}"
     if args.weight_decay:
         file_name += f"_wd{args.weight_decay}"
     file_name += ".json"
     
     print(f'Exp name: {file_name}')
+
+    
+    # ===== CHECK IF EXPERIMENT ALREADY COMPLETED =====
+    # Generate aug key early (before training)
+    if not args.data_aug:
+        aug_key = "no_aug"
+    elif args.aug_factor == 2:
+        aug_key = f"aug{args.aug_factor}_{args.flip_type}"
+    else:
+        aug_key = f"aug{args.aug_factor}"
+    
+    portion_key = str(float(args.portion))
+    lr_key = str(args.lr)
+    
+    # Construct file path
+    save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", f"cold_start_{args.pretrained_weights}")
+    file_path = os.path.join(save_path, file_name)
+    print(f"\nChecking existing results...")
+    check_existing_results(file_path, aug_key, portion_key, lr_key, max_runs=5)
+    print(f"Check passed. Proceeding with training...\n")
+    # =================================================
     
     # Get training data indices
     tot_num_train = get_num_train(data_dir)
@@ -111,12 +177,11 @@ def main():
     label_idx = random.sample(unlabeled_idx, target_num)
     
     print(f"Number of labeled samples: {len(label_idx)}")
-    # print(f"Label indices: {label_idx}")
     
     # Load data
     if args.data_aug:
         if args.aug_factor is None:
-            raise ValueError()
+            raise ValueError("aug_factor is required when data_aug is True")
         else:
             data_loaders, dataset_sizes = get_data(data_dir, label_idx, args.batch_size, data_aug=True, aug_factor=args.aug_factor, flip_type=args.flip_type)
     else:
@@ -125,45 +190,33 @@ def main():
     print(dataset_sizes)
     
     # Initialize model
-    if args.use_pretrained:
-        if args.pretrained_weights == 'simclr':
-            print('Initialize ResNet18 using SimCLR weights')
-            model = initialize_simclr_model(
-                num_classes, args.simclr_path
-            )
-        elif args.pretrained_weights == 'auto_encoder':
-            raise NotImplementedError()
-            # print('Initialize ResNet18 using AutoEncoder weights')
-            # model = initialize_ae_model(
-            #     num_classes, args.ae_path
-            # )
-        else:
-            print('Initialize ResNet18 using ImageNet pretrained weights')
-            model = initialize_model(
-                num_classes, True
-            )
-    else:
+    if args.pretrained_weights == 'random':
         print('Initialize ResNet18 without pretrained weights')
-        model = initialize_model(
-            num_classes, False
-        )
+        model = initialize_model(num_classes, False)
+    elif args.pretrained_weights == 'simclr':
+        print('Initialize ResNet18 using SimCLR weights')
+        print(f'SimCLR model path {args.simclr_path}')
+        model = initialize_simclr_model(num_classes, args.simclr_path)
+    elif args.pretrained_weights == 'auto_encoder':
+        raise NotImplementedError()
+    elif args.pretrained_weights == 'imagenet':
+        print('Initialize ResNet18 using ImageNet pretrained weights')
+        model = initialize_model(num_classes, True)
+    else:
+        raise NotImplementedError()
     
     criterion = nn.CrossEntropyLoss()
-    # if args.weight_decay is not None:
-    #     print(f"Set weight decay to {args.weight_decay}")
-    #     optimizer_ = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    # else:
-    #     optimizer_ = optim.Adam(model.parameters(), lr=args.lr)
+    
     if args.weight_decay is not None:
         print(f"Set weight decay to {args.weight_decay}")
         optimizer_ = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     else:
         optimizer_ = optim.AdamW(model.parameters(), lr=args.lr)
-    # lr_scheduler_ = lr_scheduler.StepLR(optimizer_, step_size=5, gamma=0.1)
+    
     lr_scheduler_ = lr_scheduler.LinearLR(
         optimizer_, 
-        start_factor=1.0,      # 從 100% 的 lr 開始
-        end_factor=0.0,        # 降到 0% 的 lr（或設定其他值如 0.01）
+        start_factor=1.0,
+        end_factor=0.0,
         total_iters=args.epoch
     )
     
@@ -180,11 +233,13 @@ def main():
     print(f'{"Trainable Params":<20}: {total_trainable_params / 1e6:.2f}M')
     print('-' * 50)
 
-
     _, final_acc = train_model(
         model, args.device, data_loaders, dataset_sizes, 
         criterion, optimizer_, lr_scheduler_, num_epochs=args.epoch
     )
+    
+    # Round to 4 decimal places
+    final_acc = round(final_acc, 4)
     print(f"Final Acc: {final_acc}")
     
     # Optional save model
@@ -210,37 +265,68 @@ def main():
             print('Model checkpoint not saved.')
     
     # Save results
-    if args.use_pretrained and args.pretrained_weights:
-        save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", 
-                                f"cold_start_pretrained_{args.pretrained_weights}")
-    elif args.use_pretrained:
-        save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", "cold_start")
-    else:
-        save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", "cold_start_no_pretrained")
-    
+    save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", f"cold_start_{args.pretrained_weights}")
     os.makedirs(save_path, exist_ok=True)
     file_path = os.path.join(save_path, file_name)
     
+    # Generate aug key
+    if not args.data_aug:
+        aug_key = "no_aug"
+    elif args.aug_factor == 2:
+        aug_key = f"aug{args.aug_factor}_{args.flip_type}"
+    else:
+        aug_key = f"aug{args.aug_factor}"
+    
+    print(f'Aug config key: {aug_key}')
+    
     # Load or create results file
     if os.path.isfile(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Warning: JSON decode error in {file_path}: {e}")
+            print("Creating new data structure...")
+            data = {}
     else:
         data = {}
     
-    # Update results
+    # Initialize aug key if not exists
+    if aug_key not in data:
+        data[aug_key] = {}
+    
+    # Add results to corresponding portion and lr
     portion_key = str(float(args.portion))
-    if portion_key not in data:
-        data[portion_key] = []
-    data[portion_key].append(final_acc)
+    lr_key = str(args.lr)
     
-    # Sort and save
-    sorted_data = {k: data[k] for k in sorted(data, key=float)}
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(sorted_data, f, indent=4, ensure_ascii=False)
+    # Initialize portion
+    if portion_key not in data[aug_key]:
+        data[aug_key][portion_key] = {}
     
-    print(f'Result saved to {file_path}!')
+    # Initialize lr
+    if lr_key not in data[aug_key][portion_key]:
+        data[aug_key][portion_key][lr_key] = []
+    
+    # Add result
+    data[aug_key][portion_key][lr_key].append(final_acc)
+    
+    # Sort portions AND lrs within each aug configuration
+    sorted_data = {}
+    for aug_k in sorted(data.keys()):
+        sorted_portions = {}
+        # Sort portions by float value
+        for portion_k in sorted(data[aug_k].keys(), key=float):
+            # Sort lrs by float value within each portion
+            sorted_lrs = {}
+            for lr_k in sorted(data[aug_k][portion_k].keys(), key=float):
+                sorted_lrs[lr_k] = data[aug_k][portion_k][lr_k]
+            sorted_portions[portion_k] = sorted_lrs
+        sorted_data[aug_k] = sorted_portions
+    
+    # Save with compact list format
+    save_compact_json(sorted_data, file_path)
 
+    print(f'Result saved to {file_path}!')
 
 if __name__ == "__main__":
     main()

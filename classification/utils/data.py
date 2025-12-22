@@ -165,13 +165,13 @@ def get_data(data_dir, labeled_train_idx=None, batch_size=8, data_aug=True, aug_
         ),
         'val': torch.utils.data.DataLoader(
             val_dataset,
-            batch_size=64,
+            batch_size=16, # 設回小一點才可以同時在同一個gpu跑多個
             shuffle=False,
             num_workers=4,
         ),
         'test': torch.utils.data.DataLoader(
             test_dataset,
-            batch_size=64,
+            batch_size=16,
             shuffle=False,
             num_workers=4,
         )
