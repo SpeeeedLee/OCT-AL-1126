@@ -4,5 +4,6 @@ ds/
 dataset/
 
 **.pkl
+**.zip
 
 tb_logs/
