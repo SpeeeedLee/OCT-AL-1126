@@ -1,6 +1,7 @@
 __pycache__/
 
 ds/
+dataset/
 
 **.pkl
 
