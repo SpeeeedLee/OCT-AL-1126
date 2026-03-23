@@ -83,7 +83,9 @@ class AugmentedDataset(Dataset):
         return img, label
 
 
-def get_data(data_dir, labeled_train_idx=None, batch_size=8, data_aug=True, aug_factor=4, flip_type='horizontal'):
+def get_data(data_dir, labeled_train_idx=None, batch_size=8, data_aug=True,
+             aug_factor=4, flip_type='horizontal',
+             color_jitter=False, jitter_brightness=0.3, jitter_contrast=0.4):
     '''
     Split original val data to val and test!
     
@@ -99,13 +101,29 @@ def get_data(data_dir, labeled_train_idx=None, batch_size=8, data_aug=True, aug_
         flip_type: 當 aug_factor=2 時的翻轉類型 (default: 'horizontal')
             - 'horizontal': 水平翻轉
             - 'vertical': 垂直翻轉
-    '''    
+        color_jitter: 是否啟用 online ColorJitter augmentation (default: False)
+        jitter_brightness: ColorJitter brightness 範圍 (default: 0.3)
+        jitter_contrast: ColorJitter contrast 範圍 (default: 0.4)
+    '''
+    # Build train transform (optionally with ColorJitter)
+    train_transform_list = []
+    if color_jitter:
+        train_transform_list.append(
+            transforms.ColorJitter(brightness=jitter_brightness, contrast=jitter_contrast)
+        )
+        print(f"ColorJitter enabled: brightness={jitter_brightness}, contrast={jitter_contrast}")
+    train_transform_list += [
+        transforms.ToTensor(),
+        transforms.Normalize([0.5]*3, [0.5]*3),
+    ]
+
     data_transforms = {
-        phase: transforms.Compose([
+        'train': transforms.Compose(train_transform_list),
+        'val': transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize([0.5]*3, [0.5]*3),
-        ]) for phase in ['train', 'val']
-    } ## This is important, to align simclr pretraining!
+        ]),
+    }  ## This is important, to align simclr pretraining!
 
     # 讀取 train 和原始的 val dataset
     train_dataset = datasets.ImageFolder(
@@ -165,7 +183,7 @@ def get_data(data_dir, labeled_train_idx=None, batch_size=8, data_aug=True, aug_
         ),
         'val': torch.utils.data.DataLoader(
             val_dataset,
-            batch_size=16, # 設回小一點才可以同時在同一個gpu跑多個
+            batch_size=16,
             shuffle=False,
             num_workers=4,
         ),
@@ -179,34 +197,5 @@ def get_data(data_dir, labeled_train_idx=None, batch_size=8, data_aug=True, aug_
 
     dataset_sizes = {p: len(image_datasets[p]) for p in ['train', 'val', 'test']}
     print("dataset sizes:", dataset_sizes)
-    # # 獲取類別名稱
-    # class_names = original_val_dataset.classes
-    
-    # # 打印 Train 集的類別分布
-    # print("\nTrain 類別分布:")
-    # if isinstance(train_dataset, AugmentedDataset):
-    #     train_targets = [train_dataset.base_dataset[i][1] for i in range(train_dataset.base_size)]
-    #     train_counter = Counter(train_targets)
-    #     for cls in sorted(train_counter.keys()):
-    #         print(f"  {class_names[cls]}: {train_counter[cls] * aug_factor} 張")
-    # else:
-    #     train_targets = [train_dataset[i][1] for i in range(len(train_dataset))]
-    #     train_counter = Counter(train_targets)
-    #     for cls in sorted(train_counter.keys()):
-    #         print(f"  {class_names[cls]}: {train_counter[cls]} 張")
-    
-    # # 打印 Val 集的類別分布
-    # print("\nValidation 類別分布:")
-    # val_targets = [original_val_dataset.targets[i] for i in val_idx]
-    # val_counter = Counter(val_targets)
-    # for cls in sorted(val_counter.keys()):
-    #     print(f"  {class_names[cls]}: {val_counter[cls]} 張")
-    
-    # # 打印 Test 集的類別分布
-    # print("\nTest 類別分布:")
-    # test_targets = [original_val_dataset.targets[i] for i in test_idx]
-    # test_counter = Counter(test_targets)
-    # for cls in sorted(test_counter.keys()):
-    #     print(f"  {class_names[cls]}: {test_counter[cls]} 張")
 
     return data_loaders, dataset_sizes

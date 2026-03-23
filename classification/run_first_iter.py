@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from utils.data import get_data, get_num_train
+from classification.utils.data import get_data, get_num_train
 from model.resnet import get_resnet18_classifier
 from model.simclr.resnet_simclr import ResNetSimCLR 
 from utils.train_eval import train_model
@@ -32,7 +32,14 @@ def parse_arguments():
     parser.add_argument('--ask_saving', action='store_true', default=False)
     parser.add_argument('--no_data_aug', dest='data_aug', action='store_false', default=True)
     parser.add_argument('--aug_factor', type=int, default=4)   
-    parser.add_argument('--flip_type', type=str, default='horizontal')   
+    parser.add_argument('--flip_type', type=str, default='horizontal')
+    # ColorJitter arguments
+    parser.add_argument('--color_jitter', action='store_true', default=False,
+                        help='Enable online ColorJitter augmentation on training set')
+    parser.add_argument('--jitter_brightness', type=float, default=0.3,
+                        help='ColorJitter brightness range (default: 0.3)')
+    parser.add_argument('--jitter_contrast', type=float, default=0.3,
+                        help='ColorJitter contrast range (default: 0.3)')
 
     return parser.parse_args()
 
@@ -46,7 +53,7 @@ def initialize_simclr_model(num_classes, simclr_path):
     model = ResNetSimCLR('resnet18', 32)
     state_dict = torch.load(simclr_path, map_location='cpu', weights_only=True)
     model.load_state_dict(state_dict, strict=False)
-    print(model)
+    # print(model)
     
     in_features = model.backbone.fc[0].in_features
     model.backbone.fc = nn.Linear(in_features, num_classes, bias=True)
@@ -67,7 +74,6 @@ def save_compact_json(data, file_path):
                 lines.append(format_dict(value, indent + 1))
                 lines.append('  ' * indent + '}' + comma)
             elif isinstance(value, list):
-                # Keep list on single line
                 list_str = '[' + ', '.join(str(x) for x in value) + ']'
                 lines.append('  ' * indent + f'"{key}": {list_str}' + comma)
             else:
@@ -79,6 +85,7 @@ def save_compact_json(data, file_path):
     
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(json_str)
+
 
 def check_existing_results(file_path, aug_key, portion_key, lr_key, max_runs=5):
     """
@@ -96,7 +103,6 @@ def check_existing_results(file_path, aug_key, portion_key, lr_key, max_runs=5):
         print(f"Warning: JSON decode error in {file_path}: {e}")
         return
     
-    # Navigate through the nested structure
     if aug_key in data:
         if portion_key in data[aug_key]:
             if lr_key in data[aug_key][portion_key]:
@@ -122,6 +128,7 @@ def check_existing_results(file_path, aug_key, portion_key, lr_key, max_runs=5):
     else:
         print(f"No results found for aug_key={aug_key}")
 
+
 def main():
     args = parse_arguments()
     
@@ -144,20 +151,21 @@ def main():
     
     print(f'Exp name: {file_name}')
 
-    
     # ===== CHECK IF EXPERIMENT ALREADY COMPLETED =====
-    # Generate aug key early (before training)
     if not args.data_aug:
         aug_key = "no_aug"
     elif args.aug_factor == 2:
         aug_key = f"aug{args.aug_factor}_{args.flip_type}"
     else:
         aug_key = f"aug{args.aug_factor}"
+
+    # Append jitter suffix to aug_key if enabled
+    if args.color_jitter:
+        aug_key += f"_jitter_b{args.jitter_brightness}_c{args.jitter_contrast}"
     
     portion_key = str(float(args.portion))
     lr_key = str(args.lr)
     
-    # Construct file path
     save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", f"cold_start_{args.pretrained_weights}")
     file_path = os.path.join(save_path, file_name)
     print(f"\nChecking existing results...")
@@ -172,7 +180,6 @@ def main():
     print(f'===== Load {args.portion}% Data =====')
     target_num = round(tot_num_train * args.portion / 100)
     
-    # Sample indices
     random.seed(args.seed)
     unlabeled_idx = list(range(tot_num_train))
     label_idx = random.sample(unlabeled_idx, target_num)
@@ -183,10 +190,23 @@ def main():
     if args.data_aug:
         if args.aug_factor is None:
             raise ValueError("aug_factor is required when data_aug is True")
-        else:
-            data_loaders, dataset_sizes = get_data(data_dir, label_idx, args.batch_size, data_aug=True, aug_factor=args.aug_factor, flip_type=args.flip_type)
+        data_loaders, dataset_sizes = get_data(
+            data_dir, label_idx, args.batch_size,
+            data_aug=True,
+            aug_factor=args.aug_factor,
+            flip_type=args.flip_type,
+            color_jitter=args.color_jitter,
+            jitter_brightness=args.jitter_brightness,
+            jitter_contrast=args.jitter_contrast,
+        )
     else:
-        data_loaders, dataset_sizes = get_data(data_dir, label_idx, args.batch_size, data_aug=False)
+        data_loaders, dataset_sizes = get_data(
+            data_dir, label_idx, args.batch_size,
+            data_aug=False,
+            color_jitter=args.color_jitter,
+            jitter_brightness=args.jitter_brightness,
+            jitter_contrast=args.jitter_contrast,
+        )
 
     print(dataset_sizes)
     
@@ -205,7 +225,8 @@ def main():
         model = initialize_model(num_classes, True)
     else:
         raise NotImplementedError()
-    print(model)
+
+    # print(model)
     criterion = nn.CrossEntropyLoss()
     
     if args.weight_decay is not None:
@@ -227,6 +248,10 @@ def main():
     print(f'{"Batch Size":<20}: {args.batch_size}')
     print(f'{"Learning Rate":<20}: {args.lr}')
     print(f'{"Weight Decay":<20}: {args.weight_decay if args.weight_decay else "None"}')
+    print(f'{"Color Jitter":<20}: {args.color_jitter}')
+    if args.color_jitter:
+        print(f'{"  brightness":<20}: {args.jitter_brightness}')
+        print(f'{"  contrast":<20}: {args.jitter_contrast}')
     print(f'{"Total Samples":<20}: {len(label_idx)}')
     print(f'{"Batches per Epoch":<20}: {len(label_idx) // args.batch_size}')
 
@@ -239,7 +264,6 @@ def main():
         criterion, optimizer_, lr_scheduler_, num_epochs=args.epoch
     )
     
-    # Round to 4 decimal places
     final_acc = round(final_acc, 4)
     print(f"Final Acc: {final_acc}")
     
@@ -248,15 +272,12 @@ def main():
         user_input = input('Do you want to save the model checkpoint? (y/n): ').strip().lower()
         if user_input in ['y', 'yes']:
             model_path = input('Please enter the path to save the model: ').strip()
-            
             if not model_path:
                 print('No path provided. Using default: ./model_checkpoint.pth')
                 model_path = './model_checkpoint.pth'
-            
             model_dir = os.path.dirname(model_path)
             if model_dir:
                 os.makedirs(model_dir, exist_ok=True)
-            
             try:
                 torch.save(model.state_dict(), model_path)            
                 print(f'Model checkpoint saved to: {model_path}')
@@ -269,14 +290,6 @@ def main():
     save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", f"cold_start_{args.pretrained_weights}")
     os.makedirs(save_path, exist_ok=True)
     file_path = os.path.join(save_path, file_name)
-    
-    # Generate aug key
-    if not args.data_aug:
-        aug_key = "no_aug"
-    elif args.aug_factor == 2:
-        aug_key = f"aug{args.aug_factor}_{args.flip_type}"
-    else:
-        aug_key = f"aug{args.aug_factor}"
     
     print(f'Aug config key: {aug_key}')
     
@@ -292,42 +305,41 @@ def main():
     else:
         data = {}
     
-    # Initialize aug key if not exists
     if aug_key not in data:
         data[aug_key] = {}
     
-    # Add results to corresponding portion and lr
     portion_key = str(float(args.portion))
     lr_key = str(args.lr)
     
-    # Initialize portion
     if portion_key not in data[aug_key]:
         data[aug_key][portion_key] = {}
     
-    # Initialize lr
     if lr_key not in data[aug_key][portion_key]:
         data[aug_key][portion_key][lr_key] = []
     
-    # Add result
     data[aug_key][portion_key][lr_key].append(final_acc)
     
     # Sort portions AND lrs within each aug configuration
     sorted_data = {}
     for aug_k in sorted(data.keys()):
         sorted_portions = {}
-        # Sort portions by float value
         for portion_k in sorted(data[aug_k].keys(), key=float):
-            # Sort lrs by float value within each portion
             sorted_lrs = {}
             for lr_k in sorted(data[aug_k][portion_k].keys(), key=float):
                 sorted_lrs[lr_k] = data[aug_k][portion_k][lr_k]
             sorted_portions[portion_k] = sorted_lrs
         sorted_data[aug_k] = sorted_portions
     
-    # Save with compact list format
     save_compact_json(sorted_data, file_path)
-
     print(f'Result saved to {file_path}!')
+
 
 if __name__ == "__main__":
     main()
+
+# python3 run_first_iter_new.py --task_type hard --portion 20 --seed 42 --pretrained_weights imagenet --color_jitter --no_data_aug --lr 5e-4 --> 0.6941，有比較好!
+
+# baseline 0.7176
+# python3 run_first_iter_new.py --task_type hard --portion 20 --seed 42 --pretrained_weights imagenet --color_jitter --lr 3e-4 --> 0.7412，有比較好!
+# python3 run_first_iter_new.py --task_type hard --portion 20 --seed 42 --pretrained_weights imagenet --color_jitter --lr 3e-4 --jitter_brightness 0.5 --jitter_contrast 0.5 --> 0.7059 
+# python3 run_first_iter_new.py --task_type hard --portion 20 --seed 42 --pretrained_weights imagenet --color_jitter --lr 3e-4 --jitter_brightness 0.2 --jitter_contrast 0.2 --> 0.7294
