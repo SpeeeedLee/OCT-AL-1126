@@ -27,3 +27,66 @@ conda activate oct-env
 chmod +x ./segmentation/custom/train_random.sh
 ./segmentation/custom/train_random.sh
 ```
+
+
+### Active Learning
+```bash
+python3 segmentation/run_AL.py \
+    --AL_strategy mean_entropy \
+    --dataroot ./ds/segmentation \
+    --portion_start 5.0 \
+    --portion_end 60.0 \
+    --portion_interval 2.5 \
+    --seed 42
+
+python3 segmentation/run_AL.py \
+    --AL_strategy nuclei_entropy \
+    --dataroot ./ds/segmentation \
+    --portion_start 5.0 \
+    --portion_end 60.0 \
+    --portion_interval 2.5 \
+    --seed 42 \
+    --device 'cuda:8'
+
+python segmentation/run_AL.py \
+    --AL_strategy nuclei_entropy_clustering \
+    --dataroot ./ds/segmentation \
+    --portion_start 5.0 \
+    --portion_end 100.0 \
+    --portion_interval 2.5 \
+    --seed 42 \
+    --device 'cuda:8'
+
+python3 segmentation/run_AL.py \
+    --AL_strategy nuclei_entropy \
+    --dataroot ./ds/segmentation \
+    --portion_start 5.0 \
+    --portion_end 100.0 \
+    --portion_interval 1.0 \
+    --seed 42 \
+    --device 'cuda:2'
+
+python segmentation/run_AL.py \
+    --AL_strategy nuclei_entropy_clustering \
+    --dataroot ./ds/segmentation \
+    --portion_start 5.0 \
+    --portion_end 100.0 \
+    --portion_interval 1.0 \
+    --seed 42 \
+    --device 'cuda:7'
+
+```
+
+
+```bash
+python3 segmentation/run_AL_ensemble.py \
+    --dataroot ./ds/segmentation \
+    --AL_strategy bald_ensemble_mean \
+    --portion_start 5.0 \
+    --portion_end 100.0 \
+    --portion_interval 2.5 \
+    --initial_seed 42 \
+    --seed_start 1 \
+    --n_models 5 \
+    --device cuda:0
+```

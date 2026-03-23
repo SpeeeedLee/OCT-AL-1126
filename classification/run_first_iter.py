@@ -10,10 +10,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from classification.utils.data import get_data, get_num_train
-from classification.model.resnet import get_resnet18_classifier
-from classification.model.simclr.resnet_simclr import ResNetSimCLR 
-from classification.utils.train_eval import train_model
+from utils.data import get_data, get_num_train
+from model.resnet import get_resnet18_classifier
+from model.simclr.resnet_simclr import ResNetSimCLR 
+from utils.train_eval import train_model
 
 
 def parse_arguments():
@@ -46,6 +46,7 @@ def initialize_simclr_model(num_classes, simclr_path):
     model = ResNetSimCLR('resnet18', 32)
     state_dict = torch.load(simclr_path, map_location='cpu', weights_only=True)
     model.load_state_dict(state_dict, strict=False)
+    print(model)
     
     in_features = model.backbone.fc[0].in_features
     model.backbone.fc = nn.Linear(in_features, num_classes, bias=True)
@@ -126,9 +127,9 @@ def main():
     
     # Determine task configuration
     task_config = {
-        'easy': (2, './ds/classification/two_class'),
-        'medium': (4, './ds/classification/four_class'),
-        'hard': (7, './ds/classification/seven_class')
+        'easy': (2, '../ds/classification/two_class'),
+        'medium': (4, '../ds/classification/four_class'),
+        'hard': (7, '../ds/classification/seven_class')
     }
     num_classes, data_dir = task_config[args.task_type]
     
@@ -160,7 +161,7 @@ def main():
     save_path = os.path.join(args.exp_path, f"classification_{args.task_type}", f"cold_start_{args.pretrained_weights}")
     file_path = os.path.join(save_path, file_name)
     print(f"\nChecking existing results...")
-    check_existing_results(file_path, aug_key, portion_key, lr_key, max_runs=5)
+    check_existing_results(file_path, aug_key, portion_key, lr_key, max_runs=3)
     print(f"Check passed. Proceeding with training...\n")
     # =================================================
     
@@ -204,7 +205,7 @@ def main():
         model = initialize_model(num_classes, True)
     else:
         raise NotImplementedError()
-    
+    print(model)
     criterion = nn.CrossEntropyLoss()
     
     if args.weight_decay is not None:

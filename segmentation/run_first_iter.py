@@ -114,8 +114,8 @@ def check_existing_results(file_path, portion_key, lr_key, max_runs=5):
 
 def save_results_to_json(args, final_dice):
     """Save experiment results to JSON file"""
-    # Generate file name: random_bs{batch_size}.json
-    file_name = f"random_bs{args.batch_size}.json"
+    # Generate file name: random_{seed}_bs{batch_size}.json
+    file_name = f"random_{args.seed}_bs{args.batch_size}.json"
     
     # Construct save path: ./segmentation/exp_results/nuclei/cold_start_random/
     save_path = os.path.join(args.exp_path, "nuclei", "cold_start_random")
@@ -178,8 +178,8 @@ def main():
     if args.portion <= 0 or args.portion > 100:
         raise ValueError(f"Portion must be between 0 and 100, got {args.portion}")
     
-    # Generate file name for checking
-    file_name = f"random_bs{args.batch_size}.json"
+    # Generate file name for checking (包含 seed)
+    file_name = f"random_{args.seed}_bs{args.batch_size}.json"
     print(f'Exp name: {file_name}')
     
     # ===== CHECK IF EXPERIMENT ALREADY COMPLETED (for training) =====
