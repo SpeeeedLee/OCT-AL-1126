@@ -1,3 +1,7 @@
+
+# https://docs.pytorch.org/vision/main/auto_examples/transforms/plot_transforms_illustrations.html
+# We should not do AutoContrast here, because AutoContrast means doing nothinh when we already normalize imgae to 0 and 255
+
 from torchvision.transforms import transforms
 from torchvision import transforms, datasets
 from data_aug.gaussian_blur import GaussianBlur

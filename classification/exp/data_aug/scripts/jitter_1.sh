@@ -36,11 +36,13 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 ######## custom configs ########
-lrs=(7e-5 1e-4 3e-4 5e-4 7e-4)
+# lrs=(7e-5 1e-4 3e-4 5e-4 7e-4)
+lrs=(1e-3)
 runs=3
 seed=42
+# total number of training samples: 2032
 portions=(2.5)
-device='cuda:1'
+device='cuda:2'
 pretrained_weights='imagenet'
 #################################
 
@@ -59,67 +61,72 @@ for run in $(seq 1 $runs); do
         # ---- no_aug ----
         echo "    [no_aug] launching ${#lrs[@]} LRs in parallel..."
         for lr in "${lrs[@]}"; do
-            python3 ./run_first_iter.py \
+            python3 ./run_first_iter_new.py \
                 --task_type 'hard' --lr $lr \
                 --pretrained_weights $pretrained_weights \
                 --device $device \
                 --portion $portion --seed $seed \
+                --color_jitter \
                 --no_data_aug &
             pids+=($!)
         done
         wait; pids=()
         echo "    [no_aug] done"
 
-        # ---- aug2 horizontal ----
-        echo "    [aug2 horizontal] launching ${#lrs[@]} LRs in parallel..."
-        for lr in "${lrs[@]}"; do
-            python3 ./run_first_iter.py \
-                --task_type 'hard' --lr $lr \
-                --pretrained_weights $pretrained_weights \
-                --device $device \
-                --portion $portion --seed $seed \
-                --aug_factor 2 --flip_type 'horizontal' &
-            pids+=($!)
-        done
-        wait; pids=()
-        echo "    [aug2 horizontal] done"
+        # # ---- aug2 horizontal ----
+        # echo "    [aug2 horizontal] launching ${#lrs[@]} LRs in parallel..."
+        # for lr in "${lrs[@]}"; do
+        #     python3 ./run_first_iter_new.py \
+        #         --task_type 'hard' --lr $lr \
+        #         --pretrained_weights $pretrained_weights \
+        #         --device $device \
+        #         --portion $portion --seed $seed \
+        #         --color_jitter \
+        #         --aug_factor 2 --flip_type 'horizontal' &
+        #     pids+=($!)
+        # done
+        # wait; pids=()
+        # echo "    [aug2 horizontal] done"
 
-        # ---- aug2 vertical ----
-        echo "    [aug2 vertical] launching ${#lrs[@]} LRs in parallel..."
-        for lr in "${lrs[@]}"; do
-            python3 ./run_first_iter.py \
-                --task_type 'hard' --lr $lr \
-                --pretrained_weights $pretrained_weights \
-                --device $device \
-                --portion $portion --seed $seed \
-                --aug_factor 2 --flip_type 'vertical' &
-            pids+=($!)
-        done
-        wait; pids=()
-        echo "    [aug2 vertical] done"
+        # # ---- aug2 vertical ----
+        # echo "    [aug2 vertical] launching ${#lrs[@]} LRs in parallel..."
+        # for lr in "${lrs[@]}"; do
+        #     python3 ./run_first_iter_new.py \
+        #         --task_type 'hard' --lr $lr \
+        #         --pretrained_weights $pretrained_weights \
+        #         --device $device \
+        #         --portion $portion --seed $seed \
+        #         --color_jitter \
+        #         --aug_factor 2 --flip_type 'vertical' &
+        #     pids+=($!)
+        # done
+        # wait; pids=()
+        # echo "    [aug2 vertical] done"
 
-        # ---- aug3 ----
-        echo "    [aug3] launching ${#lrs[@]} LRs in parallel..."
-        for lr in "${lrs[@]}"; do
-            python3 ./run_first_iter.py \
-                --task_type 'hard' --lr $lr \
-                --pretrained_weights $pretrained_weights \
-                --device $device \
-                --portion $portion --seed $seed \
-                --aug_factor 3 &
-            pids+=($!)
-        done
-        wait; pids=()
-        echo "    [aug3] done"
+        # # ---- aug3 ----
+        # echo "    [aug3] launching ${#lrs[@]} LRs in parallel..."
+        # for lr in "${lrs[@]}"; do
+        #     python3 ./run_first_iter_new.py \
+        #         --task_type 'hard' --lr $lr \
+        #         --pretrained_weights $pretrained_weights \
+        #         --device $device \
+        #         --portion $portion --seed $seed \
+        #         --color_jitter \
+        #         --aug_factor 3 &
+        #     pids+=($!)
+        # done
+        # wait; pids=()
+        # echo "    [aug3] done"
 
         # ---- aug4 ----
         echo "    [aug4] launching ${#lrs[@]} LRs in parallel..."
         for lr in "${lrs[@]}"; do
-            python3 ./run_first_iter.py \
+            python3 ./run_first_iter_new.py \
                 --task_type 'hard' --lr $lr \
                 --pretrained_weights $pretrained_weights \
                 --device $device \
                 --portion $portion --seed $seed \
+                --color_jitter \
                 --aug_factor 4 &
             pids+=($!)
         done

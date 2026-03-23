@@ -11,6 +11,7 @@ def load_data(json_path):
 
 
 def get_best_lr_stats(rho_data):
+    """Find LR with highest mean, return (mean, std, best_lr, vals) of that LR's runs."""
     best_mean = -1
     best_vals = []
     best_lr = None
@@ -23,68 +24,51 @@ def get_best_lr_stats(rho_data):
     return np.mean(best_vals), np.std(best_vals), best_lr, best_vals
 
 
-FIXED_CONFIGS = {
+AUG_CONFIGS = {
     "no_aug":          ("No Aug",            "#888888"),
-    "aug2_horizontal": ("Horizontal (2x)",   "#4C9BE8"),
-    "aug2_vertical":   ("Vertical (2x)",     "#E87C4C"),
-    "aug3":            ("H + V (3x)",        "#9B59B6"),
-    "aug4":            ("H + V + HV (4x)",   "#27AE60"),
+    "aug2_horizontal": ("Horizontal (2×)",   "#4C9BE8"),
+    "aug2_vertical":   ("Vertical (2×)",     "#E87C4C"),
+    "aug3":            ("H + V (3×)",        "#9B59B6"),
+    "aug4":            ("H + V + HV (4×)",   "#27AE60"),
 }
 
-EXTRA_COLORS = [
-    "#E74C3C", "#F39C12", "#1ABC9C", "#2980B9",
-    "#8E44AD", "#D35400", "#16A085", "#C0392B",
-]
 
-
-def build_aug_configs(data):
-    configs = {}
-    for key, (label, color) in FIXED_CONFIGS.items():
-        if key in data:
-            configs[key] = (label, color)
-    extra_keys = [k for k in data.keys() if k not in FIXED_CONFIGS]
-    for i, key in enumerate(sorted(extra_keys)):
-        color = EXTRA_COLORS[i % len(EXTRA_COLORS)]
-        configs[key] = (key, color)
-    return configs
-
-
-def print_stats(data, aug_configs):
+def print_stats(data):
     all_rhos = sorted(set(
         float(r)
-        for cfg in aug_configs
+        for cfg in AUG_CONFIGS
         if cfg in data
         for r in data[cfg]
     ))
 
     for rho in all_rhos:
         rho_str = str(float(rho))
-        print(f"\n{'='*90}")
+        print(f"\n{'='*75}")
         print(f"  rho = {int(rho) if rho == int(rho) else rho}%")
-        print(f"{'='*90}")
-        print(f"  {'Strategy':<45} {'Best LR':<10} {'Mean':>8} {'Std':>8}  Values")
-        print(f"  {'-'*88}")
-        for cfg_key, (label, _) in aug_configs.items():
+        print(f"{'='*75}")
+        print(f"  {'Strategy':<22} {'Best LR':<10} {'Mean':>8} {'Std':>8}  Values")
+        print(f"  {'-'*73}")
+        for cfg_key, (label, _) in AUG_CONFIGS.items():
             if cfg_key not in data:
                 continue
             if rho_str not in data[cfg_key]:
                 continue
             mean, std, best_lr, best_vals = get_best_lr_stats(data[cfg_key][rho_str])
             vals_str = '[' + ', '.join(f'{v:.4f}' for v in best_vals) + ']'
-            print(f"  {label:<45} {best_lr:<10} {mean:>8.4f} {std:>8.4f}  {vals_str}")
+            print(f"  {label:<22} {best_lr:<10} {mean:>8.4f} {std:>8.4f}  {vals_str}")
 
 
-def plot(data, aug_configs, save_path=None):
+def plot(data, save_path=None):
     all_rhos = sorted(set(
         float(r)
-        for cfg in aug_configs
+        for cfg in AUG_CONFIGS
         if cfg in data
         for r in data[cfg]
     ))
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    for cfg_key, (label, color) in aug_configs.items():
+    for cfg_key, (label, color) in AUG_CONFIGS.items():
         if cfg_key not in data:
             continue
 
@@ -98,30 +82,30 @@ def plot(data, aug_configs, save_path=None):
             means.append(mean)
             stds.append(std)
 
-        if not rhos:
-            continue
-
         rhos  = np.array(rhos)
         means = np.array(means)
         stds  = np.array(stds)
 
-        linestyle = '--' if cfg_key not in FIXED_CONFIGS else '-'
-
         ax.plot(rhos, means, marker='o', markersize=5, linewidth=2,
-                label=label, color=color, linestyle=linestyle)
+                label=label, color=color)
         ax.fill_between(rhos, means - stds, means + stds,
                         alpha=0.15, color=color)
 
     ax.set_xlabel(r'$\rho$ (Labeled Training Data Ratio; %)', fontsize=15, labelpad=8)
     ax.set_ylabel('Accuracy', fontsize=15, labelpad=8)
+    # tick 字體大小
     ax.tick_params(axis='x', labelsize=14)
     ax.tick_params(axis='y', labelsize=14)
     ax.xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, _: f'{int(round(x*100))}')
     )
+    # ax.set_xticks(sorted(set(r / 100.0 for r in all_rhos)))
     ax.set_xticks([r / 100.0 for r in range(10, 101, 10)])
+    ax.tick_params(axis='x', 
+                #    rotation=45
+                )
     ax.set_ylim(0.525, 0.95)
-    ax.legend(fontsize=9, loc='lower right')
+    ax.legend(fontsize=11, loc='lower right')
     ax.grid(True, linestyle='--', alpha=0.4)
     fig.tight_layout()
 
@@ -142,11 +126,8 @@ def main():
     args = parser.parse_args()
 
     data = load_data(args.json_path)
-    aug_configs = build_aug_configs(data)
-
-    print(f"\nDetected aug configs: {list(aug_configs.keys())}")
-    print_stats(data, aug_configs)
-    plot(data, aug_configs, save_path=args.save)
+    print_stats(data)
+    plot(data, save_path=args.save)
 
 
 if __name__ == '__main__':
