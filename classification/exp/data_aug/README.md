@@ -1,3 +1,71 @@
+# 0323
+
+## train flipping
+### individual
+```bash
+cd ./classification
+python3 ./run_first_iter.py \
+                --task_type 'hard' --lr 5e-4 \
+                --pretrained_weights imagenet \
+                --device 'cuda:7' \
+                --portion 10 --seed 24 \
+                --no_data_aug
+
+python3 ./run_first_iter.py \
+                --task_type 'hard' --lr 1e-4 \
+                --pretrained_weights imagenet \
+                --device 'cuda:7' \
+                --portion 100 --seed 42
+
+python3 ./run_first_iter.py \
+                --task_type 'hard' --lr 1e-4 \
+                --pretrained_weights imagenet \
+                --device 'cuda:8' \
+                --aug_factor 2 \
+                --flip_type vertical \
+                --portion 100 --seed 42
+```
+
+### use script
+```bash
+cd ./classification
+## portions = [2.5 5 10 20 40 80]
+## seeds = [10, 24, 38, 42, 57]
+# SEED=10 PORTIONS="2.5 5 10 20 40 80" DEVICE="cuda:0" ./exp/data_aug/scripts/train_flip.sh
+SEED=10 PORTIONS="2.5" DEVICE="cuda:0" ./exp/data_aug/scripts/train_flip.sh
+SEED=24 PORTIONS="2.5" DEVICE="cuda:3" ./exp/data_aug/scripts/train_flip.sh
+SEED=38 PORTIONS="2.5" DEVICE="cuda:1" ./exp/data_aug/scripts/train_flip.sh
+SEED=42 PORTIONS="2.5" DEVICE="cuda:3" ./exp/data_aug/scripts/train_flip.sh
+SEED=57 PORTIONS="2.5" DEVICE="cuda:2" ./exp/data_aug/scripts/train_flip.sh
+
+SEED=24 PORTIONS="10" DEVICE="cuda:1" ./exp/data_aug/scripts/train_flip.sh
+SEED=38 PORTIONS="10" DEVICE="cuda:2" ./exp/data_aug/scripts/train_flip.sh
+SEED=57 PORTIONS="10" DEVICE="cuda:1" ./exp/data_aug/scripts/train_flip.sh
+
+
+./exp/data_aug/scripts/flip_total_p20.sh
+./exp/data_aug/scripts/flip_total_p40.sh
+
+```
+
+## visualize
+```bash
+cd ./classification/exp/data_aug
+python3 ./plot_all.py --portions 2.5
+python3 ./plot_all.py --portions 5
+python3 ./plot_all.py --portions 10
+python3 ./plot_all.py --portions 20
+python3 ./plot_all.py --portions 40
+python3 ./plot_all.py --portions 80
+```
+
+Oh...LR應該還要再往下一格，尤其是data量大、又有4x augmentation的時候!
+
+
+
+
+----下面是舊的----
+
 ### Run Scripts
 ```bash
 ./classification/exp/data_aug/scripts/portion_5_data_aug_random.sh

@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from classification.utils.data import get_data, get_num_train
+from utils.data import get_data, get_num_train
 from model.resnet import get_resnet18_classifier
 from model.simclr.resnet_simclr import ResNetSimCLR 
 from utils.train_eval import train_model
@@ -144,11 +144,11 @@ def main():
     args.batch_size = 16
     
     # Generate file name
-    file_name = f"random{args.seed}_bs{args.batch_size}"
+    file_name = f"random{args.seed}_bs{args.batch_size}_ep{args.epoch}"
     if args.weight_decay:
         file_name += f"_wd{args.weight_decay}"
     file_name += ".json"
-    
+        
     print(f'Exp name: {file_name}')
 
     # ===== CHECK IF EXPERIMENT ALREADY COMPLETED =====

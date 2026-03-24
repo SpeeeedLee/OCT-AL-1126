@@ -38,10 +38,13 @@ trap cleanup SIGINT SIGTERM
 ######## custom configs ########
 lrs=(7e-5 1e-4 3e-4 5e-4 7e-4)
 runs=3
-seed=42
-portions=(2.5)
-device='cuda:1'
+seed=57
+# seed=24
+# seed=10
+portions=(5)
+device='cuda:0'
 pretrained_weights='imagenet'
+epoch=20
 #################################
 
 total_portions=${#portions[@]}
@@ -64,6 +67,7 @@ for run in $(seq 1 $runs); do
                 --pretrained_weights $pretrained_weights \
                 --device $device \
                 --portion $portion --seed $seed \
+                --epoch $epoch \
                 --no_data_aug &
             pids+=($!)
         done
@@ -78,6 +82,7 @@ for run in $(seq 1 $runs); do
                 --pretrained_weights $pretrained_weights \
                 --device $device \
                 --portion $portion --seed $seed \
+                --epoch $epoch \
                 --aug_factor 2 --flip_type 'horizontal' &
             pids+=($!)
         done
@@ -92,6 +97,7 @@ for run in $(seq 1 $runs); do
                 --pretrained_weights $pretrained_weights \
                 --device $device \
                 --portion $portion --seed $seed \
+                --epoch $epoch \
                 --aug_factor 2 --flip_type 'vertical' &
             pids+=($!)
         done
@@ -106,6 +112,7 @@ for run in $(seq 1 $runs); do
                 --pretrained_weights $pretrained_weights \
                 --device $device \
                 --portion $portion --seed $seed \
+                --epoch $epoch \
                 --aug_factor 3 &
             pids+=($!)
         done
@@ -120,6 +127,7 @@ for run in $(seq 1 $runs); do
                 --pretrained_weights $pretrained_weights \
                 --device $device \
                 --portion $portion --seed $seed \
+                --epoch $epoch \
                 --aug_factor 4 &
             pids+=($!)
         done

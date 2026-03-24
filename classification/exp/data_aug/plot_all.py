@@ -1,3 +1,4 @@
+import os
 import json
 import argparse
 import numpy as np
@@ -11,6 +12,7 @@ def load_data(json_path):
 
 
 def get_best_lr_stats(rho_data):
+    """For a single rho's data (lr -> [vals]), find the best LR by mean accuracy."""
     best_mean = -1
     best_vals = []
     best_lr = None
@@ -21,6 +23,36 @@ def get_best_lr_stats(rho_data):
             best_vals = vals
             best_lr = lr
     return np.mean(best_vals), np.std(best_vals), best_lr, best_vals
+
+
+def get_best_lr_representative_acc(rho_data):
+    """
+    Find best LR by mean accuracy, return that mean as the representative acc
+    for this JSON (seed) at this rho.
+    """
+    mean, std, best_lr, best_vals = get_best_lr_stats(rho_data)
+    return mean, best_lr, best_vals
+
+
+def get_fixed_lr_representative_acc(rho_data, only_lr):
+    """
+    Use the specified LR directly (if it exists), return that mean as the
+    representative acc for this JSON (seed) at this rho.
+    Compares as float to handle formats like '1e-4' vs '0.0001'.
+    """
+    target = float(only_lr)
+    matched_key = None
+    for k in rho_data:
+        try:
+            if float(k) == target:
+                matched_key = k
+                break
+        except ValueError:
+            continue
+    if matched_key is None:
+        return None, only_lr, []
+    vals = rho_data[matched_key]
+    return np.mean(vals), matched_key, vals
 
 
 FIXED_CONFIGS = {
@@ -37,66 +69,178 @@ EXTRA_COLORS = [
 ]
 
 
-def build_aug_configs(data):
+def build_aug_configs(all_data_list):
+    """Build aug configs from the union of all JSON files."""
+    all_keys = set()
+    for data in all_data_list:
+        all_keys.update(data.keys())
+
     configs = {}
     for key, (label, color) in FIXED_CONFIGS.items():
-        if key in data:
+        if key in all_keys:
             configs[key] = (label, color)
-    extra_keys = [k for k in data.keys() if k not in FIXED_CONFIGS]
-    for i, key in enumerate(sorted(extra_keys)):
+    extra_keys = [k for k in sorted(all_keys) if k not in FIXED_CONFIGS]
+    for i, key in enumerate(extra_keys):
         color = EXTRA_COLORS[i % len(EXTRA_COLORS)]
         configs[key] = (key, color)
     return configs
 
 
-def print_stats(data, aug_configs):
-    all_rhos = sorted(set(
-        float(r)
-        for cfg in aug_configs
-        if cfg in data
-        for r in data[cfg]
-    ))
+def get_all_rhos(all_data_list, aug_configs):
+    """Get sorted union of all rho values across all JSONs and aug configs."""
+    rhos = set()
+    for data in all_data_list:
+        for cfg in aug_configs:
+            if cfg in data:
+                for r in data[cfg]:
+                    rhos.add(float(r))
+    return sorted(rhos)
+
+
+def get_representative_acc(rho_data, only_lr):
+    """Dispatcher: use fixed LR or best LR depending on only_lr."""
+    if only_lr is not None:
+        return get_fixed_lr_representative_acc(rho_data, only_lr)
+    else:
+        return get_best_lr_representative_acc(rho_data)
+
+
+def print_stats(all_data_list, json_paths, aug_configs, filter_rhos=None, only_lr=None, presented_keys=None):
+    all_rhos = get_all_rhos(all_data_list, aug_configs)
+    num_jsons = len(json_paths)
+
+    if filter_rhos is not None:
+        all_rhos = [r for r in all_rhos if r in filter_rhos]
+
+    lr_mode_str = f"only_lr={only_lr}" if only_lr is not None else "best LR per run"
+
+    # Print short names for each JSON
+    print(f"\n{'='*90}")
+    print(f"  JSON files ({num_jsons} total)  |  LR mode: {lr_mode_str}")
+    for i, p in enumerate(json_paths):
+        print(f"    [{i}] {p}")
+    print(f"{'='*90}")
 
     for rho in all_rhos:
         rho_str = str(float(rho))
+        rho_display = int(rho) if rho == int(rho) else rho
+
         print(f"\n{'='*90}")
-        print(f"  rho = {int(rho) if rho == int(rho) else rho}%")
+        print(f"  rho = {rho_display}%")
         print(f"{'='*90}")
-        print(f"  {'Strategy':<45} {'Best LR':<10} {'Mean':>8} {'Std':>8}  Values")
-        print(f"  {'-'*88}")
+
         for cfg_key, (label, _) in aug_configs.items():
-            if cfg_key not in data:
+
+            # Skip if not in presented_keys
+            if presented_keys is not None and cfg_key not in presented_keys:
                 continue
-            if rho_str not in data[cfg_key]:
+
+            # Collect per-JSON results
+            per_json_results = []
+            for i, data in enumerate(all_data_list):
+                if cfg_key not in data or rho_str not in data[cfg_key]:
+                    per_json_results.append(None)
+                    continue
+                mean, best_lr, best_vals = get_representative_acc(data[cfg_key][rho_str], only_lr)
+                if mean is None:
+                    per_json_results.append(None)
+                    continue
+                per_json_results.append({
+                    'mean': mean,
+                    'std': np.std(best_vals),
+                    'best_lr': best_lr,
+                    'best_vals': best_vals,
+                })
+
+            valid_results = [r for r in per_json_results if r is not None]
+            if not valid_results:
                 continue
-            mean, std, best_lr, best_vals = get_best_lr_stats(data[cfg_key][rho_str])
-            vals_str = '[' + ', '.join(f'{v:.4f}' for v in best_vals) + ']'
-            print(f"  {label:<45} {best_lr:<10} {mean:>8.4f} {std:>8.4f}  {vals_str}")
+
+            print(f"\n  [{label}]")
+            print(f"  {'-'*96}")
+            print(f"  {'JSON':<8} {'LR':<10} {'Mean':>8} {'Std':>8}  {'Values'}")
+            print(f"  {'-'*96}")
+
+            for i, result in enumerate(per_json_results):
+                if result is None:
+                    print(f"  [{i}]{'':<4} {'N/A':<10}")
+                else:
+                    vals_str = '[' + ', '.join(f'{v:.4f}' for v in result['best_vals']) + ']'
+                    print(f"  [{i}]{'':<4} {result['best_lr']:<10} {result['mean']:>8.4f} {result['std']:>8.4f}  {vals_str}")
+
+            # Cross-JSON summary
+            representative_accs = [r['mean'] for r in valid_results]
+            cross_mean = np.mean(representative_accs)
+            cross_std = np.std(representative_accs)
+            accs_str = '[' + ', '.join(f'{v:.4f}' for v in representative_accs) + ']'
+
+            print(f"  {'-'*96}")
+            print(f"  {'Cross-JSON':<18} {'Mean':>8} {'Std':>8}  Representative Accs")
+            print(f"  {'':<18} {cross_mean:>8.4f} {cross_std:>8.4f}  {accs_str}")
 
 
-def plot(data, aug_configs, save_path=None):
-    all_rhos = sorted(set(
-        float(r)
-        for cfg in aug_configs
-        if cfg in data
-        for r in data[cfg]
-    ))
+SPECIAL_RHO_100_JSON = '../../exp_results/classification_hard/cold_start_imagenet/random42_bs16_ep20.json'
+
+
+def plot(all_data_list, aug_configs, json_paths, save_path=None, only_lr=None, presented_keys=None, plot_rhos=None, plot_xticks=None):
+    all_rhos = get_all_rhos(all_data_list, aug_configs)
+
+    # Filter to only the requested rho values
+    if plot_rhos is not None:
+        plot_rhos_set = set(plot_rhos)
+        all_rhos = [r for r in all_rhos if r in plot_rhos_set]
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
     for cfg_key, (label, color) in aug_configs.items():
-        if cfg_key not in data:
-            continue
 
+        # Skip if not in presented_keys
+        if presented_keys is not None and cfg_key not in presented_keys:
+            continue
         rhos, means, stds = [], [], []
+
         for rho in all_rhos:
             rho_str = str(float(rho))
-            if rho_str not in data[cfg_key]:
+
+            # Special case: rho=100 → use only SPECIAL_RHO_100_JSON, inside-JSON mean & std
+            if rho == 100.0:
+                try:
+                    special_idx = [os.path.abspath(p) for p in json_paths].index(
+                        os.path.abspath(SPECIAL_RHO_100_JSON))
+                    special_data = all_data_list[special_idx]
+                except ValueError:
+                    # fallback: match by basename
+                    special_idx = next(
+                        (i for i, p in enumerate(json_paths)
+                         if os.path.basename(p) == os.path.basename(SPECIAL_RHO_100_JSON)), None)
+                    special_data = all_data_list[special_idx] if special_idx is not None else None
+
+                if special_data is None or cfg_key not in special_data or rho_str not in special_data[cfg_key]:
+                    continue
+                mean, _, vals = get_representative_acc(special_data[cfg_key][rho_str], only_lr)
+                if mean is None:
+                    continue
+                rhos.append(rho / 100.0)
+                means.append(mean)
+                stds.append(np.std(vals))
                 continue
-            mean, std, _, _ = get_best_lr_stats(data[cfg_key][rho_str])
+
+            # Normal case: cross-JSON mean & std
+            representative_accs = []
+            for data in all_data_list:
+                if cfg_key not in data or rho_str not in data[cfg_key]:
+                    continue
+                mean, _, _ = get_representative_acc(data[cfg_key][rho_str], only_lr)
+                if mean is None:
+                    continue
+                representative_accs.append(mean)
+
+            if not representative_accs:
+                continue
+
             rhos.append(rho / 100.0)
-            means.append(mean)
-            stds.append(std)
+            means.append(np.mean(representative_accs))
+            stds.append(np.std(representative_accs))
 
         if not rhos:
             continue
@@ -107,21 +251,24 @@ def plot(data, aug_configs, save_path=None):
 
         linestyle = '--' if cfg_key not in FIXED_CONFIGS else '-'
 
-        ax.plot(rhos, means, marker='o', markersize=5, linewidth=2,
+        ax.plot(rhos, means * 100, marker='o', markersize=5, linewidth=2,
                 label=label, color=color, linestyle=linestyle)
-        ax.fill_between(rhos, means - stds, means + stds,
+        ax.fill_between(rhos, (means - stds) * 100, (means + stds) * 100,
                         alpha=0.15, color=color)
 
-    ax.set_xlabel(r'$\rho$ (Labeled Training Data Ratio; %)', fontsize=15, labelpad=8)
-    ax.set_ylabel('Accuracy', fontsize=15, labelpad=8)
+    ax.set_xlabel(r'Labeled Training Data Ratio $\rho$ (%)', fontsize=15, labelpad=8)
+    ax.set_ylabel('Accuracy (%)', fontsize=15, labelpad=8)
     ax.tick_params(axis='x', labelsize=14)
     ax.tick_params(axis='y', labelsize=14)
     ax.xaxis.set_major_formatter(
-        mticker.FuncFormatter(lambda x, _: f'{int(round(x*100))}')
+        mticker.FuncFormatter(lambda x, _: f'{x*100:.4g}')
     )
-    ax.set_xticks([r / 100.0 for r in range(10, 101, 10)])
-    ax.set_ylim(0.525, 0.95)
-    ax.legend(fontsize=9, loc='lower right')
+    xticks = plot_xticks if plot_xticks is not None else all_rhos
+    ax.set_xticks([r / 100.0 for r in xticks])
+    ax.set_ylim(45, 97)
+
+    lr_title = f" (LR={only_lr})" if only_lr is not None else ""
+    ax.legend(fontsize=9, loc='lower right', title=f"LR mode: fixed{lr_title}" if only_lr else None)
     ax.grid(True, linestyle='--', alpha=0.4)
     fig.tight_layout()
 
@@ -134,19 +281,56 @@ def plot(data, aug_configs, save_path=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--json_path', type=str,
-                        default='../../exp_results/classification_hard/cold_start_imagenet/random42_bs16.json',
-                        help='Path to the results JSON file')
+    parser.add_argument('--json_paths', type=str, nargs='+',
+        default=[
+            '../../exp_results/classification_hard/cold_start_imagenet/random10_bs16_ep20.json',
+            '../../exp_results/classification_hard/cold_start_imagenet/random24_bs16_ep20.json',
+            '../../exp_results/classification_hard/cold_start_imagenet/random38_bs16_ep20.json',
+            '../../exp_results/classification_hard/cold_start_imagenet/random42_bs16_ep20.json',
+            '../../exp_results/classification_hard/cold_start_imagenet/random57_bs16_ep20.json',
+        ],
+        help='List of JSON result files (one per seed/run)')
+    parser.add_argument('--portions', type=float, nargs='*', default=None,
+                        help='Only print stats for these portions (e.g. --portions 2.5 10 20). Default: print all.')
     parser.add_argument('--save', type=str, default='./imagenet_aug.png',
                         help='Path to save the plot. If not set, show interactively.')
+    parser.add_argument('--only_lr', type=str, default=None,
+                        help='If specified, only use this exact LR from all JSON files instead of picking the best LR per run.')
+    parser.add_argument('--plot_rhos', type=float, nargs='+',
+                        default=[2.5, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                        help='Which rho values to include in the plot. Default: [2.5, 5, 10, 20, 40, 60, 80, 100].')
+    parser.add_argument('--plot_xticks', type=float, nargs='+',
+                        default=[5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                        help='Which rho values to show as x-axis ticks. Default: same as --plot_rhos.')
+    parser.add_argument('--presented_keys', type=str, nargs='+',
+                        default=['no_aug', 'aug2_horizontal', 'aug2_vertical', 'aug3', 'aug4', 
+                                #  'no_aug_jitter_b0.3_c0.3', 'aug4_jitter_b0.3_c0.3'
+                                 ],
+                        help='Which aug configs to show in terminal and plot. Default: the 5 base configs.')
     args = parser.parse_args()
 
-    data = load_data(args.json_path)
-    aug_configs = build_aug_configs(data)
+    # If plot_xticks not specified, default to same as plot_rhos
+    if args.plot_xticks is None:
+        args.plot_xticks = args.plot_rhos
+
+    all_data_list = []
+    for p in args.json_paths:
+        all_data_list.append(load_data(p))
+
+    aug_configs = build_aug_configs(all_data_list)
 
     print(f"\nDetected aug configs: {list(aug_configs.keys())}")
-    print_stats(data, aug_configs)
-    plot(data, aug_configs, save_path=args.save)
+    print(f"Presented keys: {args.presented_keys}")
+    if args.only_lr is not None:
+        print(f"LR mode: fixed LR = {args.only_lr}")
+    else:
+        print(f"LR mode: best LR per run (default)")
+
+    print_stats(all_data_list, args.json_paths, aug_configs,
+                filter_rhos=args.portions, only_lr=args.only_lr,
+                presented_keys=args.presented_keys)
+    plot(all_data_list, aug_configs, json_paths=args.json_paths, save_path=args.save, only_lr=args.only_lr,
+         presented_keys=args.presented_keys, plot_rhos=args.plot_rhos, plot_xticks=args.plot_xticks)
 
 
 if __name__ == '__main__':
