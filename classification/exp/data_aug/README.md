@@ -45,6 +45,9 @@ SEED=57 PORTIONS="10" DEVICE="cuda:1" ./exp/data_aug/scripts/train_flip.sh
 
 ./exp/data_aug/scripts/flip_total_p20.sh
 ./exp/data_aug/scripts/flip_total_p40.sh
+AUGS="no_aug aug2_h aug2_v" MAX_RUN=3 SEEDS="24 38 57" LRS="7e-5 1e-4 3e-4 5e-4 7e-4" PORTIONS="60" DEVICE="cuda:7" ./exp/data_aug/scripts/train_flip_parallel.sh
+AUGS="aug3 aug4" MAX_RUN=3 SEEDS="24 38 57" LRS="5e-5 7e-5 1e-4 3e-4 5e-4" PORTIONS="60" DEVICE="cuda:8" ./exp/data_aug/scripts/train_flip_parallel.sh
+
 
 ```
 

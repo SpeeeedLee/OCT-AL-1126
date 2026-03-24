@@ -56,11 +56,11 @@ def get_fixed_lr_representative_acc(rho_data, only_lr):
 
 
 FIXED_CONFIGS = {
-    "no_aug":          ("No Aug",            "#888888"),
-    "aug2_horizontal": ("Horizontal (2x)",   "#4C9BE8"),
-    "aug2_vertical":   ("Vertical (2x)",     "#E87C4C"),
-    "aug3":            ("H + V (3x)",        "#9B59B6"),
-    "aug4":            ("H + V + HV (4x)",   "#27AE60"),
+    "no_aug":          ("w/o Aug (1x)",            "#888888"),
+    "aug2_horizontal": ("HF (2x)",   "#4C9BE8"),
+    "aug2_vertical":   ("VF (2x)",     "#E87C4C"),
+    "aug3":            ("HF+VF (3x)",        "#9B59B6"),
+    "aug4":            ("HF+VF+HVF (4x)",   "#27AE60"),
 }
 
 EXTRA_COLORS = [
@@ -265,10 +265,30 @@ def plot(all_data_list, aug_configs, json_paths, save_path=None, only_lr=None, p
     )
     xticks = plot_xticks if plot_xticks is not None else all_rhos
     ax.set_xticks([r / 100.0 for r in xticks])
-    ax.set_ylim(45, 97)
+    ax.set_ylim(45.5, 94.5)
 
     lr_title = f" (LR={only_lr})" if only_lr is not None else ""
-    ax.legend(fontsize=9, loc='lower right', title=f"LR mode: fixed{lr_title}" if only_lr else None)
+    # 取得目前的 handles 和 labels
+    handles, labels = ax.get_legend_handles_labels()
+
+    # 定義你想要的順序（用 label 名稱）
+    desired_order = [
+        'HF+VF+HVF (4x)',
+        'HF+VF (3x)',
+        'VF (2x)',
+        'HF (2x)',
+        'w/o Aug (1x)',
+    ]
+
+    # 重新排序
+    order = [labels.index(l) for l in desired_order if l in labels]
+    ax.legend(
+        [handles[i] for i in order],
+        [labels[i] for i in order],
+        fontsize=9, loc='lower right',
+        title=f"LR mode: fixed{lr_title}" if only_lr else None
+    )
+    # ax.legend(fontsize=9, loc='lower right', title=f"LR mode: fixed{lr_title}" if only_lr else None)
     ax.grid(True, linestyle='--', alpha=0.4)
     fig.tight_layout()
 
