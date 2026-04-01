@@ -46,7 +46,11 @@ SEED=57 PORTIONS="10" DEVICE="cuda:1" ./exp/data_aug/scripts/train_flip.sh
 ./exp/data_aug/scripts/flip_total_p20.sh
 ./exp/data_aug/scripts/flip_total_p40.sh
 AUGS="no_aug aug2_h aug2_v" MAX_RUN=3 SEEDS="24 38 57" LRS="7e-5 1e-4 3e-4 5e-4 7e-4" PORTIONS="60" DEVICE="cuda:7" ./exp/data_aug/scripts/train_flip_parallel.sh
-AUGS="aug3 aug4" MAX_RUN=3 SEEDS="24 38 57" LRS="5e-5 7e-5 1e-4 3e-4 5e-4" PORTIONS="60" DEVICE="cuda:8" ./exp/data_aug/scripts/train_flip_parallel.sh
+
+AUGS="no_aug aug2_h aug2_v aug3 aug4" MAX_RUN=3 SEEDS="10 24 38 42 57" LRS="5e-5 7e-5 1e-4 3e-4 5e-4" PORTIONS="10 20 30 50" DEVICE="cuda:7" ./exp/data_aug/scripts/train_flip_parallel.sh
+
+
+AUGS="no_aug aug2_h aug2_v aug3 aug4" MAX_RUN=3 SEEDS="10 24 38 42 57" LRS="5e-5 7e-5 1e-4 3e-4 5e-4" PORTIONS="40 60 70 80 90" DEVICE="cuda:8" ./exp/data_aug/scripts/train_flip_parallel.sh
 
 
 ```
@@ -58,8 +62,14 @@ python3 ./plot_all.py --portions 2.5
 python3 ./plot_all.py --portions 5
 python3 ./plot_all.py --portions 10
 python3 ./plot_all.py --portions 20
+python3 ./plot_all.py --portions 30
 python3 ./plot_all.py --portions 40
+python3 ./plot_all.py --portions 50
+python3 ./plot_all.py --portions 60
+python3 ./plot_all.py --portions 70
 python3 ./plot_all.py --portions 80
+python3 ./plot_all.py --portions 90
+python3 ./plot_all.py --portions 100
 ```
 
 Oh...LR應該還要再往下一格，尤其是data量大、又有4x augmentation的時候!
