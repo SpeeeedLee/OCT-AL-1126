@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import json
 from datetime import datetime
 
 import torch
@@ -72,11 +73,28 @@ class SimCLR(object):
         return logits, labels
 
     def train(self, train_loader):
-
         scaler = GradScaler(enabled=self.args.fp16_precision)
-
-        # save config file
         save_config_file(self.writer.log_dir, self.args)
+
+        # 建立資料夾
+        model_dir = "./SSL/simclr/model"
+        json_dir  = "./SSL/simclr/json"
+        os.makedirs(model_dir, exist_ok=True)
+        os.makedirs(json_dir,  exist_ok=True)
+
+        # 共用檔名 (不含副檔名)
+        base_name = f"{self.args.arch}_simclr_lr{self.args.lr}_bs{self.args.batch_size}_ep{self.args.epochs}"
+        model_path = os.path.join(model_dir, f"{base_name}.pkl")
+        json_path  = os.path.join(json_dir,  f"{base_name}.json")
+
+        # JSON 結構初始化
+        training_history = {
+            "arch":       self.args.arch,
+            "lr":         self.args.lr,
+            "batch_size": self.args.batch_size,
+            "epochs":     self.args.epochs,
+            "history":    []   # 每個 epoch append 一筆
+        }
 
         n_iter = 0
         logging.info(f"Start SimCLR training for {self.args.epochs} epochs.")
@@ -87,60 +105,135 @@ class SimCLR(object):
             epoch_top1 = 0.0
             epoch_top5 = 0.0
             batch_count = 0
-            
+
             for images, _ in tqdm(train_loader):
-                images = torch.cat(images, dim=0)
-                images = images.to(self.args.device)
+                images = torch.cat(images, dim=0).to(self.args.device)
 
                 with autocast(enabled=self.args.fp16_precision):
                     features = self.model(images)
                     logits, labels = self.info_nce_loss(features)
                     loss = self.criterion(logits, labels)
-                
+
                 self.optimizer.zero_grad()
                 scaler.scale(loss).backward()
                 scaler.step(self.optimizer)
                 scaler.update()
 
-                # 累積每個 epoch 的統計資訊
                 top1, top5 = accuracy(logits, labels, topk=(1, 5))
                 epoch_loss += loss.item()
                 epoch_top1 += top1[0].item()
                 epoch_top5 += top5[0].item()
                 batch_count += 1
-
                 n_iter += 1
-            
-            # 計算平均值
-            avg_loss = epoch_loss / batch_count
-            avg_top1 = epoch_top1 / batch_count
-            avg_top5 = epoch_top5 / batch_count
-            current_lr = self.scheduler.get_lr()[0]
-            
-            # 記錄到 tensorboard 並同時 print 到 terminal
-            self.writer.add_scalar('epoch_loss', avg_loss, global_step=epoch_counter)
-            self.writer.add_scalar('epoch_acc/top1', avg_top1, global_step=epoch_counter)
-            self.writer.add_scalar('epoch_acc/top5', avg_top5, global_step=epoch_counter)
-            self.writer.add_scalar('learning_rate', current_lr, global_step=epoch_counter)
-            
-            # Print 到 terminal
+
+            avg_loss    = epoch_loss / batch_count
+            avg_top1    = epoch_top1 / batch_count
+            avg_top5    = epoch_top5 / batch_count
+            current_lr  = self.scheduler.get_lr()[0]
+
+            # TensorBoard
+            self.writer.add_scalar('epoch_loss',      avg_loss,   global_step=epoch_counter)
+            self.writer.add_scalar('epoch_acc/top1',  avg_top1,   global_step=epoch_counter)
+            self.writer.add_scalar('epoch_acc/top5',  avg_top5,   global_step=epoch_counter)
+            self.writer.add_scalar('learning_rate',   current_lr, global_step=epoch_counter)
+
+            # Terminal
             print(f"Epoch: {epoch_counter}")
             print(f"  Loss: {avg_loss:.4f}")
             print(f"  Top1 Accuracy: {avg_top1:.2f}%")
             print(f"  Top5 Accuracy: {avg_top5:.2f}%")
             print(f"  Learning Rate: {current_lr:.6f}")
             print("-" * 50)
-            
-            # # warmup for the first 10 epochs
-            # if epoch_counter >= 10:
-            
-            ## no warmup, directly consine decay
+
+            # JSON 動態更新 ← 每個 epoch 都寫入一次
+            training_history["history"].append({
+                "epoch":      epoch_counter,
+                "loss":       avg_loss,
+                "top1":       avg_top1,
+                "top5":       avg_top5,
+                "lr":         current_lr,
+            })
+            with open(json_path, "w") as f:
+                json.dump(training_history, f, indent=4)
+
             self.scheduler.step()
-        
             logging.debug(f"Epoch: {epoch_counter}\tLoss: {avg_loss}\tTop1 accuracy: {avg_top1}")
-            
-        torch.save(self.model.state_dict() ,f"./SSL/simclr/{self.args.arch}_simclr_lr{self.args.lr}_bs{self.args.batch_size}_ep{self.args.epochs}.pkl")
+
+        # 存 model
+        torch.save(self.model.state_dict(), model_path)
         logging.info("Training has finished.")
+
+        
+    # def train(self, train_loader):
+
+    #     scaler = GradScaler(enabled=self.args.fp16_precision)
+
+    #     # save config file
+    #     save_config_file(self.writer.log_dir, self.args)
+
+    #     n_iter = 0
+    #     logging.info(f"Start SimCLR training for {self.args.epochs} epochs.")
+    #     logging.info(f"Training with gpu: {self.args.disable_cuda}.")
+
+    #     for epoch_counter in range(self.args.epochs):
+    #         epoch_loss = 0.0
+    #         epoch_top1 = 0.0
+    #         epoch_top5 = 0.0
+    #         batch_count = 0
+            
+    #         for images, _ in tqdm(train_loader):
+    #             images = torch.cat(images, dim=0)
+    #             images = images.to(self.args.device)
+
+    #             with autocast(enabled=self.args.fp16_precision):
+    #                 features = self.model(images)
+    #                 logits, labels = self.info_nce_loss(features)
+    #                 loss = self.criterion(logits, labels)
+                
+    #             self.optimizer.zero_grad()
+    #             scaler.scale(loss).backward()
+    #             scaler.step(self.optimizer)
+    #             scaler.update()
+
+    #             # 累積每個 epoch 的統計資訊
+    #             top1, top5 = accuracy(logits, labels, topk=(1, 5))
+    #             epoch_loss += loss.item()
+    #             epoch_top1 += top1[0].item()
+    #             epoch_top5 += top5[0].item()
+    #             batch_count += 1
+
+    #             n_iter += 1
+            
+    #         # 計算平均值
+    #         avg_loss = epoch_loss / batch_count
+    #         avg_top1 = epoch_top1 / batch_count
+    #         avg_top5 = epoch_top5 / batch_count
+    #         current_lr = self.scheduler.get_lr()[0]
+            
+    #         # 記錄到 tensorboard 並同時 print 到 terminal
+    #         self.writer.add_scalar('epoch_loss', avg_loss, global_step=epoch_counter)
+    #         self.writer.add_scalar('epoch_acc/top1', avg_top1, global_step=epoch_counter)
+    #         self.writer.add_scalar('epoch_acc/top5', avg_top5, global_step=epoch_counter)
+    #         self.writer.add_scalar('learning_rate', current_lr, global_step=epoch_counter)
+            
+    #         # Print 到 terminal
+    #         print(f"Epoch: {epoch_counter}")
+    #         print(f"  Loss: {avg_loss:.4f}")
+    #         print(f"  Top1 Accuracy: {avg_top1:.2f}%")
+    #         print(f"  Top5 Accuracy: {avg_top5:.2f}%")
+    #         print(f"  Learning Rate: {current_lr:.6f}")
+    #         print("-" * 50)
+            
+    #         # # warmup for the first 10 epochs
+    #         # if epoch_counter >= 10:
+            
+    #         ## no warmup, directly consine decay
+    #         self.scheduler.step()
+        
+    #         logging.debug(f"Epoch: {epoch_counter}\tLoss: {avg_loss}\tTop1 accuracy: {avg_top1}")
+            
+    #     torch.save(self.model.state_dict() ,f"./SSL/simclr/{self.args.arch}_simclr_lr{self.args.lr}_bs{self.args.batch_size}_ep{self.args.epochs}.pkl")
+    #     logging.info("Training has finished.")
 
     # def train(self, train_loader):
 

@@ -1,3 +1,64 @@
+## 0401 final
+
+### Training from random init
+不知為啥，跟from ImageNet不同，
+from random 的話，似乎反而是Portion越少的時候需要越小的LR!
+
+```bash
+cd ./classification
+
+AUGS="aug4" MAX_RUN=3 SEEDS="10 24 38 42 57" LRS="7e-6 1e-5 3e-5 5e-5 7e-5 1e-4 3e-4" PORTIONS="2.5 5 10" DEVICE="cuda:4" ./exp/meta_scripts/train_parallel.sh
+
+AUGS="aug4" MAX_RUN=3 SEEDS="10 24 38 42 57" LRS="5e-5 7e-5 1e-4 3e-4 5e-4" PORTIONS="20 30 40" DEVICE="cuda:4" ./exp/meta_scripts/train_parallel.sh
+
+AUGS="aug4" MAX_RUN=3 SEEDS="10 24 38 42 57" LRS="3e-4 5e-4 7e-4 1e-3 " PORTIONS="50 60 70" DEVICE="cuda:4" ./exp/meta_scripts/train_parallel.sh
+
+AUGS="aug4" MAX_RUN=4 SEEDS="10 24 38 42 57" LRS="5e-4 7e-4 1e-3 3e-3" PORTIONS="80 90" DEVICE="cuda:2" ./exp/meta_scripts/train_parallel.sh
+
+AUGS="aug4" MAX_RUN=4 SEEDS="42" LRS="7e-4 1e-3 3e-3" PORTIONS="100" DEVICE="cuda:2" ./exp/meta_scripts/train_parallel.sh
+```
+
+### Training from ImageNet
+Already done in data_aug
+
+### Training from SimCLR1
+First train SimCLR models
+Remeber to do SimCLR varying batch size (16, 32, 64, 128, 256) and epoch (10, 20, 50, 100, 200, 500) for 100% data fine-tuning first!
+```bash
+cd ../ # i.e., root dir of this project
+./classification/exp/weights_init/scripts/train_simclr.sh --DEVICE 'cuda:0'
+./classification/exp/weights_init/scripts/train_simclr_2.sh --DEVICE 'cuda:1'
+./classification/exp/weights_init/scripts/train_simclr_3.sh --DEVICE 'cuda:2'
+
+# view run
+tensorboard --logdir ./SSL/simclr/tb_logs
+```
+
+### Training from SimCLR2
+Remeber to do SimCLR varying batch size and epoch for 100% data fine-tuning first!
+
+
+
+### visualize
+```bash
+cd ./classification/exp/weights_init
+python3 ./plot_all.py --portions 2.5
+python3 ./plot_all.py --portions 5
+python3 ./plot_all.py --portions 10
+python3 ./plot_all.py --portions 20
+python3 ./plot_all.py --portions 30
+python3 ./plot_all.py --portions 40
+python3 ./plot_all.py --portions 50
+python3 ./plot_all.py --portions 60
+python3 ./plot_all.py --portions 70
+python3 ./plot_all.py --portions 80
+python3 ./plot_all.py --portions 90
+python3 ./plot_all.py --portions 100
+```
+
+
+
+
 ## Plot tSNE
 
 ```bash

@@ -18,7 +18,7 @@ from simclr import SimCLR
 #                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch SimCLR')
-parser.add_argument('-data', metavar='DIR', default='./ds/classification/four_class/train',
+parser.add_argument('-data', metavar='DIR', default='./ds/classification/seven_class/train',
                     help='path to dataset') ## This one should be changed to only include training split?
 parser.add_argument('-dataset-name', default='train',
                     help='dataset name', choices=['stl10', 'cifar10'])
@@ -45,7 +45,7 @@ parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)',
                     dest='weight_decay')
 parser.add_argument('--seed', default=None, type=int,
-                    help='seed for initializing training. ')
+                    help='seed for initializing training.')
 parser.add_argument('--disable-cuda', action='store_true',
                     help='Disable CUDA')
 parser.add_argument('--fp16-precision', action='store_true',
@@ -59,7 +59,8 @@ parser.add_argument('--temperature', default=0.07, type=float,
                     help='softmax temperature (default: 0.07)')
 parser.add_argument('--n-views', default=2, type=int, metavar='N',
                     help='Number of views for contrastive learning training.')
-parser.add_argument('--gpu-index', default=0, type=int, help='Gpu index.')
+# parser.add_argument('--gpu-index', default=0, type=int, help='Gpu index.')
+parser.add_argument('--device', default='cuda:0', type=str, help='Gpu index.')
 
 parser.add_argument('--sam', action='store_true',
                     help='Whether or not to use sharpness sware minimization.')
@@ -68,13 +69,13 @@ def main():
     args = parser.parse_args()
     assert args.n_views == 2, "Only two view training is supported. Please use --n-views 2."
     # check if gpu training is available
-    if not args.disable_cuda and torch.cuda.is_available():
-        args.device = torch.device('cuda')
-        cudnn.deterministic = True
-        cudnn.benchmark = True
-    else:
-        args.device = torch.device('cpu')
-        args.gpu_index = -1
+    # if not args.disable_cuda and torch.cuda.is_available():
+    #     args.device = torch.device('cuda')
+    #     cudnn.deterministic = True
+    #     cudnn.benchmark = True
+    # else:
+    #     args.device = torch.device('cpu')
+    #     args.gpu_index = -1
 
     dataset = ContrastiveLearningDataset(args.data)
 
@@ -95,7 +96,7 @@ def main():
                                                            last_epoch=-1)
 
     #  It’s a no-op if the 'gpu_index' argument is a negative integer or None.
-    with torch.cuda.device(args.gpu_index):
+    with torch.cuda.device(args.device):
         simclr = SimCLR(model=model, optimizer=optimizer, scheduler=scheduler, args=args)
         if args.sam:
             print('Train with Sharpness aware minimization!')
