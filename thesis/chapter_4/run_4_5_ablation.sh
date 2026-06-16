@@ -27,15 +27,19 @@
 #       參照 → 一律退回 sweep（4 個 AL cell 一致，含 all_three 以外的三個新 arm）。
 #     - AL arm 重跑安全：該 (strategy,seed) 結果 JSON 已存在就跳過；FORCE=1 強制接續。
 #
-#   AL 代表策略 = margin（user 定案 2026-06-12：所有方法中最好）。要換策略時加
-#     STRATEGY=xxx 重跑三個 AL arm 即可（結果檔名含策略名、可並存；init_only 不受影響）。
+#   AL arm 策略 = STRATEGY（margin|coreset|cluster_margin，預設 margin；margin 為 4.4 最佳）。
+#     三個 AL arm 都吃 STRATEGY；結果檔名含策略名 → 三策略各自獨立 JSON、可並存不覆蓋。
+#     init_only 是 passive（無 AL）→ 與 STRATEGY 無關，永遠只跑一次。
+#     ⚠️ 是底線 cluster_margin（不是連字號 cluster-margin），打錯會被防呆擋下。
 #
-#   用法（repo 根；AL arm 可用 SEEDS 拆卡並行）：
-#     ARM=init_only DEVICE=cuda:0 ./thesis/chapter_4/run_4_5_ablation.sh
-#     ARM=al_only   DEVICE=cuda:1 ./thesis/chapter_4/run_4_5_ablation.sh
-#     ARM=wo_aug    DEVICE=cuda:2 SEEDS="10 24 38" ./thesis/chapter_4/run_4_5_ablation.sh
-#     ARM=wo_init   DEVICE=cuda:3 SEEDS="42 57"    ./thesis/chapter_4/run_4_5_ablation.sh
-#   檢視兩個 Table（缺 cell 標 NA）：python3 thesis/chapter_4/aggregate_4_5.py
+#   用法（repo 根；AL arm 可用 SEEDS 拆卡並行）。完整一輪 = 1（init_only）+ 3×3（AL arm × 3 策略）：
+#     ARM=init_only                  DEVICE=cuda:0 ./thesis/chapter_4/run_4_5_ablation.sh
+#     ARM=al_only STRATEGY=margin    DEVICE=cuda:1 ./thesis/chapter_4/run_4_5_ablation.sh
+#     ARM=al_only STRATEGY=coreset   DEVICE=cuda:1 ./thesis/chapter_4/run_4_5_ablation.sh
+#     ARM=wo_aug  STRATEGY=margin    DEVICE=cuda:2 ./thesis/chapter_4/run_4_5_ablation.sh
+#     ...（wo_aug/wo_init 各跑 margin/coreset/cluster_margin）
+#   檢視兩個 Table（缺 cell 標 NA；用 --strategy 切換策略）：
+#     python3 thesis/chapter_4/aggregate_4_5.py --strategy margin
 # =============================================================================
 set -e
 cd "$(dirname "$0")/../.."   # repo 根
@@ -54,6 +58,15 @@ case "$ARM" in
   init_only|al_only|wo_aug|wo_init) ;;
   *) echo "!! ARM 必須是 init_only|al_only|wo_aug|wo_init（給的是 '$ARM'）"; exit 1 ;;
 esac
+
+# AL arm 的策略防呆：只接受 margin/coreset/cluster_margin（4.5 三個候選）。
+# 特別擋連字號 typo——run_AL.py 吃的是底線版 cluster_margin，cluster-margin 會被拒。
+if [ "$ARM" != "init_only" ]; then
+  case "$STRATEGY" in
+    margin|coreset|cluster_margin) ;;
+    *) echo "!! STRATEGY 必須是 margin|coreset|cluster_margin（給的是 '$STRATEGY'；注意是底線 cluster_margin）"; exit 1 ;;
+  esac
+fi
 
 # θ² ckpt 只有用到 simclr init 的 arm 需要
 if [ "$ARM" = "init_only" ] || [ "$ARM" = "wo_aug" ]; then
@@ -114,7 +127,9 @@ if [ "$ARM" = "init_only" ]; then
 fi
 
 # =====================================================================
-# AL arms：cluster_margin 軌跡 ρ=2.5→50（同 4.4 option A，差別只在 aug / init）
+# AL arms：$STRATEGY 軌跡 ρ=2.5→50（同 4.4 option A，差別只在 aug / init）
+#   策略由 STRATEGY 指定（margin/coreset/cluster_margin）；結果檔名含策略名 →
+#   三個策略各自獨立 JSON、可並存不覆蓋。三個 AL arm（al_only/wo_aug/wo_init）通用。
 # =====================================================================
 case "$ARM" in
   al_only)  PRETRAIN=imagenet; AUG_FLAGS="--no_data_aug";                            AL_DIR=AL_imagenet ;;

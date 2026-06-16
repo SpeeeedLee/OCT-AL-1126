@@ -30,6 +30,28 @@ from classification.model.simclr.resnet_simclr import ResNetSimCLR     # noqa: E
 
 CKPT_DIR = os.path.join(REPO, "thesis", "gradcam", "ckpt")
 DATA_DIR = os.path.join(REPO, "ds", "classification", "seven_class")
+# θ² cold-start 彙整檔（4.3 曲線來源）：用來查各 portion 的 best-lr（per-seed）
+COLDSTART_AGG = os.path.join(REPO, "classification", "exp_results", "classification_hard",
+                             "cold_start_simclr", "random{seed}_bs16.json")
+
+
+def lookup_best_lr(portion, seed, aug_key="aug4"):
+    """從 cold_start_simclr/random{seed}_bs16.json 撈該 (aug, portion) 下 mean-acc 最高的 lr。
+    查不到回傳 None。與論文主線（per-seed best-lr）一致。"""
+    import json
+    path = COLDSTART_AGG.format(seed=seed)
+    if not os.path.isfile(path):
+        return None
+    data = json.load(open(path))
+    pk = str(float(portion))
+    if aug_key not in data or pk not in data[aug_key]:
+        return None
+    def mean_acc(v):
+        a = v["acc"] if isinstance(v, dict) else v
+        return sum(a) / len(a) if a else -1
+    lrd = data[aug_key][pk]
+    best_lr = max(lrd.items(), key=lambda kv: mean_acc(kv[1]))[0]
+    return float(best_lr)
 
 
 def build_simclr_classifier(num_classes, simclr_ckpt):
@@ -47,7 +69,8 @@ def main():
     ap.add_argument("--portion", type=float, default=100.0)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--epoch", type=int, default=20)
-    ap.add_argument("--lr", type=float, default=5e-4)         # ρ=100 grid {1e-4,5e-4,7e-4}
+    ap.add_argument("--lr", type=float, default=None,
+                    help="不指定時自動查 cold_start_simclr 該 (portion,seed) 的 best-lr；查不到退回 5e-4")
     ap.add_argument("--aug_factor", type=int, default=4)
     ap.add_argument("--simclr_lr", default="0.0002")
     ap.add_argument("--simclr_bs", default="256")
@@ -60,6 +83,14 @@ def main():
                                f"resnet18_simclr_lr{args.simclr_lr}_bs{args.simclr_bs}_ep{args.simclr_ep}.pkl")
     if not os.path.isfile(simclr_ckpt):
         raise FileNotFoundError(simclr_ckpt)
+
+    # lr：未指定 → 查該 (portion, seed) 的 cold-start best-lr（per-seed，跟論文主線一致）
+    if args.lr is None:
+        best = lookup_best_lr(args.portion, args.seed)
+        args.lr = best if best is not None else 5e-4
+        print(f"lr = {args.lr} ({'best-lr from cold_start_simclr' if best is not None else 'fallback 5e-4 (查無)'})")
+    else:
+        print(f"lr = {args.lr} (user-specified)")
 
     tot = get_num_train(DATA_DIR)
     target = round(tot * args.portion / 100)

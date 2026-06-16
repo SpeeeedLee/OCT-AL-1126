@@ -26,7 +26,7 @@ import numpy as np
 MAIN = "./classification/exp_results/classification_hard"
 ABL = "./classification/exp_results/chapter4_5_ablation"
 SEEDS = [10, 24, 38, 42, 57]
-PORTIONS = [10.0, 30.0, 50.0]
+PORTIONS = [10.0, 20.0, 30.0, 40.0, 50.0]
 THETA2_CFG = "simclr_lr0.0002_simclr_bs256_simclr_ep500"
 
 
@@ -107,19 +107,18 @@ def main():
           f"per-seed best-lr → mean±std ddof=1 over seeds, ×100)")
 
     print_table("Table 1 — 一次只開一個策略",
-                [("Data Aug (4x)", "aug_only"),
+                [("None (全關 baseline)", "none"),
+                 ("Data Aug (4x)", "aug_only"),
                  ("Weight Init (θ²)", "init_only"),
                  (f"AL ({args.strategy})", "al_only"),
                  ("All Three", "all_three")], cells)
 
     print_table("Table 2 — 一次只關一個策略",
-                [("w/o Data Aug", "wo_aug"),
+                [("None (全關 baseline)", "none"),
+                 ("w/o Data Aug", "wo_aug"),
                  ("w/o Weight Init", "wo_init"),
                  ("w/o AL", "wo_al"),
                  ("All Three", "all_three")], cells)
-
-    print_table("參考 — 三策略全關 baseline",
-                [("None (no_aug+ImageNet)", "none")], cells)
 
     print("\n資料來源：aug_only=4.2、wo_al=4.3 θ²、all_three=4.4（主實驗）；"
           "其餘 4 arm 在 classification/exp_results/chapter4_5_ablation/。")

@@ -40,6 +40,12 @@ B0=10 DEVICE=cuda:5 STRATEGIES="coreset"  SEEDS="10 24" ./thesis/chapter_5/run_5
 B0=10 DEVICE=cuda:5 STRATEGIES="coreset"  SEEDS="38 42" ./thesis/chapter_5/run_5_1_b0_ablation.sh # 已下
 B0=10 DEVICE=cuda:5 STRATEGIES="coreset"  SEEDS="57" ./thesis/chapter_5/run_5_1_b0_ablation.sh # 已下
 
+B0=10 STRATEGIES="coreset" SEEDS="10" DEVICE=cuda:2 ./thesis/chapter_5/run_5_1_b0_ablation.sh
+B0=10 STRATEGIES="coreset" SEEDS="24" DEVICE=cuda:4 ./thesis/chapter_5/run_5_1_b0_ablation.sh
+B0=10 STRATEGIES="coreset" SEEDS="38" DEVICE=cuda:5 ./thesis/chapter_5/run_5_1_b0_ablation.sh
+B0=10 STRATEGIES="coreset" SEEDS="57" DEVICE=cuda:6 ./thesis/chapter_5/run_5_1_b0_ablation.sh
+
+
 B0=10 DEVICE=cuda:0 STRATEGIES="cluster_margin" SEEDS="10 24" ./thesis/chapter_5/run_5_1_b0_ablation.sh # 已下
 B0=10 DEVICE=cuda:0 STRATEGIES="cluster_margin" SEEDS="38 42" ./thesis/chapter_5/run_5_1_b0_ablation.sh # 已下
 B0=10 DEVICE=cuda:9 STRATEGIES="cluster_margin" SEEDS="57" ./thesis/chapter_5/run_5_1_b0_ablation.sh # 已下
@@ -136,6 +142,21 @@ python3 thesis/chapter_5/plot_b_ablation.py
 > 共通：都吃 frozen SSL 特徵、無需標註即可選 b₀；做成「b₀ 選樣器」即可（之後 b 步仍用 5.1 的策略）。
 > **近期 5.2 範圍 = TypiClust（已有）為主，必要時加 ProbCover；其餘兩法暫緩。**
 
+### 相關近期文獻：用 *foundation model* 的 embedding 做 cold-start 選樣（2024–2026）
+**與本論文差異**：我們是用「**自己 pretrain 的 SimCLR θ²** 特徵」做 cold-start AL；以下這批論文改用**大型醫療/通用 foundation model 的現成 embedding**（多數 frozen、不需自訓）→ embedding → clustering → 挑各群代表當初始標註集。可作 related work，並可考慮拿 DINOv2 等 embedding 當我們 SimCLR cold-start 的對照 baseline。
+
+1. **Foundation Model Makes Clustering A Better Initialization For Cold-Start Active Learning**（arXiv:2402.02561, 2024）
+   - 核心＝foundation embedding → clustering → 選代表樣本當 AL 初始集；在醫療影像 classification + segmentation 驗證，勝過 random 等 baseline。
+   - **試過的 foundation model**：TorchXRayVision (TXRV)、CXR Foundation (CXRF)、REMEDIS（皮膚/乳攝/病理/眼底/胸X 多域 SSL）、ImageNet-supervised DenseNet-121（baseline）。胸X 專用模型(TXRV/CXRF) > 多域 REMEDIS。
+2. **MedCAL-Bench: A Comprehensive Benchmark on Cold-Start Active Learning with Foundation Models for Medical Image Analysis**（arXiv:2508.03441, 2025）
+   - 系統性 benchmark：foundation model 當 feature extractor × 多種選樣策略。**DINO 家族在 segmentation 最佳**；不同策略各擅長不同 dataset。
+   - **試過的 foundation model（14 個）**：SAM(ViT-B/H)、MedSAM(ViT-B)、SAM2(2b+/2.1b+)；CLIP(RN50x64/ViT-L_14/@336)、MedCLIP(ResNet/ViT)；DINO(ViT-S_16/B_16)、DINOv2(ViT-B_14/G_14)；ImageNet-1k ResNet18（baseline）。
+3. **From Cold Start to Active Learning: Embedding-Based Scan Selection for Medical Image Segmentation**（arXiv:2601.18532, 2026）
+   - foundation embedding + clustering（自動定群數、群內 proportional sampling）→ 接 uncertainty-based AL；在 X-ray/MRI 三 dataset 勝過 random。
+   - **試過的 foundation model**：僅一個 — **ResNet-50 pretrained on RadImageNet**（~135 萬張放射影像）；框架對降維/特徵抽取方法 agnostic，但未實測其他模型。
+
+> 觀察：三篇用的 foundation model **沒有重疊到 OCT/皮膚 OCT 專用模型**（多為胸X/放射/通用 SAM·CLIP·DINO），且都沒用 Microsoft **MedImageInsight**。→ 我們若改用涵蓋 dermoscopy/OCT 的 embedding（見下）做 cold-start，有區隔空間。
+
 ### 實驗設計
 - baseline：隨機 b₀（Ch4 主結果）。對照：TypiClust / ProbCover / (Making-First-Choice 或 USL) 選 b₀。
 - b₀ 大小取 5.1 結論的最佳值；後續 b 步固定用三大策略各自最佳。
@@ -192,10 +213,64 @@ python3 thesis/chapter_5/plot_5_3_selection_dist.py --plot trend \
 - uncertainty 方法（Margin）在 ρ=30% 時，對**剩餘未標註池**的 uncertainty score 分布長相
   （直方圖）→ 觀察「還剩多少高不確定樣本」、分布是否隨 ρ 變平。
 
-### 質性：UMAP 視覺化
-- 對全 train set 的 SSL 特徵做 UMAP；**不同 GT 類別 = 不同顏色的點**，
-  **AL 在 ρ=30% 所選的點用紅色圈標出**。
-- 目的：直觀看各策略選樣落在表示空間何處 —— diversity 應散佈、覆蓋邊角；uncertainty 應集中在類別交界。
+### 量化（三）：類別重分布消融 — `run_5_3_redistribution.py` + `plot_5_3_redistribution.py`（✅ 已實作）
+**問題**：AL 贏，是因為它把「各類別標註比例」重分布到特定比重？還是「逐影像挑選」本身也關鍵？
+**做法（切開兩者）**：沿用 Margin / Core-set / Cluster-Margin 在各 portion、跨 5 seeds 的
+**「各類別累積選取張數平均」**當 target 各類張數（= class redistribution），但**實際影像於對應類別中
+『隨機』抽取**（每 seed 各自一組隨機抽、largest-remainder 取整使總和 = ρ·2032）。
+- **協定 = cold-start one-shot（非 iterative）**：θ²-SimCLR(lr2e-4/bs256/ep500) backbone→7-class fc、
+  aug4、AdamW+LinearLR(1→0)+CE、batch16、epoch20。每 seed 多 lr 各 run 3 次→該 seed best-mean lr；
+  最終 over 5 seeds(10,24,38,42,57) 的 **mean±std (ddof=1)**，與 4.4 聚合慣例一致。
+- **預設只跑 ρ=10/20/30%**（lr 網格沿用 4.3：ρ≤10→`3e-5 5e-5 1e-4 3e-4`、ρ20/30→`5e-5 1e-4 5e-4`）。
+- **結果隔離**：`classification/exp_results/classification_hard/redistribution_simclr/{strategy}_seed{seed}_bs16.json`
+  （與 `AL_simclr/` 同結構，plot 用同一套 per-seed-best 聚合）。重跑安全（滿 3 runs 自動 skip）。
+- **跑**：`DEVICE=cuda:6 ./thesis/chapter_5/run_5_3_redistribution.sh`
+  （可 `STRATEGIES=/PORTIONS=/SEEDS=` 覆寫；分卡＝多 shell 各設不同 DEVICE 與 SEEDS 子集）。
+- **畫**：`python3 thesis/chapter_5/plot_5_3_redistribution.py`（`--no_random` 不畫 Random 參考線）。
+  三張 `figs/5_3_redistribution_{margin,coreset,cluster_margin}.png`，title=`Ablation on <Method>`，
+  每張＝原始 AL（實線）vs **Class Redistribution Only**（同色虛線、空心 marker、含 error bar）＋ Random（灰虛線參考）。
+- **解讀**：redistribution-only 若 ≈ AL → 類別重分布即足以解釋；若 ≈ Random → 逐影像挑選才是關鍵。
+
+### 質性：UMAP / t-SNE 視覺化 — `plot_5_3_umap.py` + `plot_5_3_umap_grid.py`（✅ 已實作）
+- 用某模型的 **512 維 last-layer 特徵**（global-avgpool 後、fc 前）把 train（或 test）set 投到 2D。
+  類別=顏色+marker；AL 選取的點用**星號**(`--highlight star`)或**黑色空心方框**(`--highlight box`，無 `_star` 後綴) 標出。
+  特徵 + 2D embedding 存 `umap_cache/{model}_{method}[_test].npz`，跨 strategy/portion 重用。
+- **降維**：`--method umap | tsne`（t-SNE 先 PCA→50 再降）。圖依 `figs/{method}/{model}/` 分子資料夾。
+- **feature extractor（重要取捨）**：模型放 `thesis/gradcam/ckpt/`，`--ckpt` 指定。
+  - **看 AL 選樣幾何 → 用「未經分類 finetune」的表示空間**（frozen SimCLR θ² backbone =
+    `SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl`）：類別重疊、有邊界，看得出 diversity 覆蓋 / uncertainty 邊界。
+  - finetuned 分類器（如 `simclr_p100_4x.pth`）會把類別壓成**孤立團塊**（trivially separable），且是全資料訓練的、AL 從沒用過 → 當底圖不貼切；只適合看「團塊內選樣率」。
+  - ⚠️ 誠實性 caveat：AL 選樣**當下**用的是「該 portion 當下 finetuned 模型」的 backbone（diversity）或 softmax（uncertainty），既非 frozen 也非 p100。frozen backbone 只是**固定中性的共同底圖**（同 TypiClust 等論文做法），論文需一句話交代。
+- 樣式（皆為論文字級）：星號/背景點等大、legend 依**類別張數多→少**排序、title 只有策略+ρ（無 seed）、box 黑框。
+```bash
+# 單圖（預設 margin/coreset/cluster_margin × {30,15}%；--strategy 可加 typiclust 等）
+python3 thesis/chapter_5/plot_5_3_umap.py --ckpt SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --method umap --highlight star --portion 30 15 10 --device cuda:6
+# 純特徵空間（無任何選取標註）
+python3 thesis/chapter_5/plot_5_3_umap.py --ckpt <ckpt> --base
+```
+
+#### 六宮格：特徵空間隨 finetune portion 演變 — `plot_5_3_umap_grid.py`
+- 2×3 拼圖，子圖 (a)–(f) = ρ∈{0,15,30,50,70,100}% 的 finetune 模型對 train/test set 的特徵空間。
+  - ρ=0% = 完全沒 finetune = **frozen SimCLR θ² backbone**；ρ=100% = `simclr_p100_4x.pth`；
+    ρ=15/30/50/70% = `simclr_p{ρ}_4x.pth`（缺的格子自動標 pending，補上 checkpoint 重跑即填）。
+  - 每個子圖**各自畫 UMAP-1/UMAP-2**（六張是獨立 UMAP、兩維物理意義不同，**不可共用軸標**）。
+```bash
+python3 thesis/chapter_5/plot_5_3_umap_grid.py --method umap --split train --device cuda:6
+python3 thesis/chapter_5/plot_5_3_umap_grid.py --method umap --split test  --device cuda:6
+```
+- **產生中間四格 checkpoint（finetune，存到 `thesis/gradcam/ckpt/`）**：
+```bash
+for p in 15 30 50 70; do python3 thesis/chapter_5/finetune_full_model.py --portion $p --device cuda:6; done
+```
+  `finetune_full_model.py` 的 lr **自動查 `cold_start_simclr/random{seed}_bs16.json` 該 (portion,seed) 的 best-lr**
+  （per-seed，與論文主線一致；查不到才退回 5e-4，或 `--lr` 手動覆寫）。模型 = θ² backbone、aug4、seed42、20 epoch；子集為 random ρ%。
+  實測 best-lr：ρ15→5e-5、ρ30→5e-5、ρ50→1e-4、ρ70→1e-4。
+
+#### 【TODO，等 model 都訓練好後再做】
+- **用 random ρ=15% 的 finetune 模型（`simclr_p15_4x.pth`）當 feature extractor，重畫各 AL 選取影像的黑框圖**
+  （`plot_5_3_umap.py --ckpt thesis/gradcam/ckpt/simclr_p15_4x.pth --highlight box ...`）。
+  理由：p100 模型類別已 trivially 分離、frozen 又完全沒監督訊號；ρ=15% 是「低預算但已有監督結構」的折衷底圖，較貼近 AL 實際運作的表示空間。
 
 ### 【之後做】combine TypiClust + 其他 AL（hybrid scheduling）
 - 想法：**低 ρ 用 TypiClust（typical/density）選樣，高 ρ 切換到 uncertainty / BADGE 等**，
@@ -223,3 +298,45 @@ python3 thesis/chapter_5/plot_5_3_selection_dist.py --plot trend \
    5.2 近期用 TypiClust（已實作），必要時加 ProbCover。
 3. Ch5 鎖定的三方法，待 Ch4 5-seed 最終 al_curve 定版後確認（目前 Margin / Coreset / Cluster-Margin）。
 4. confusion matrix 與其餘 5.3 分析，是否都統一在 ρ=30%、5 seeds 平均。
+
+
+## Class Redistribution Ablation Experiments (5.3)
+
+```bash
+# 訓練（預設 margin/coreset/cluster_margin × ρ=10/20/30 × 5 seeds）
+DEVICE=cuda:6 ./thesis/chapter_5/run_5_3_redistribution.sh
+
+# 想分卡加速：開多個 shell，各設不同 DEVICE + SEEDS 子集，例如
+SEEDS="10" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
+
+SEEDS="24" DEVICE=cuda:1 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
+
+SEEDS="38" DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
+
+SEEDS="42" DEVICE=cuda:7 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
+
+SEEDS="57" DEVICE=cuda:9 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
+
+
+# portion = {15,25,35,45,55}
+SEEDS="10" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
+SEEDS="24" DEVICE=cuda:1 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
+SEEDS="38" DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
+SEEDS="42" DEVICE=cuda:7 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
+SEEDS="57" DEVICE=cuda:7 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
+
+# portion = {40,50,60}
+SEEDS="10" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh # 已下
+
+SEEDS="24" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh # 已下
+
+SEEDS="38" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh
+
+SEEDS="42" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh
+
+SEEDS="57" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh
+
+# 跑完畫圖
+python3 thesis/chapter_5/plot_5_3_redistribution.py
+# 或加 --no_random
+```

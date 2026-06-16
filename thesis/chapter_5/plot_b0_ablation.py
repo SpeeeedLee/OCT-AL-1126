@@ -226,6 +226,7 @@ def plot_method(method, aug, out_dir):
         ax.fill_between(ps, mean - std, mean + std, color="#404040", alpha=0.10)
     # Target
     ax.axhline(y=88.2, color="black", linestyle=(0, (8, 4)), linewidth=2.2, alpha=0.85, label="Target")
+    ax.axhline(y=82.0, color="0.4", linestyle=(0, (8, 4)), linewidth=2.2, alpha=0.55, label="Target 2")
 
     ax.set_xlabel(r"Labeled Training Data Ratio $\rho$ (%)", fontsize=FONT_LABEL, labelpad=10)
     ax.set_ylabel("Accuracy (%)", fontsize=FONT_LABEL, labelpad=10)

@@ -82,10 +82,21 @@ def build_model(ckpt_path, num_classes=7):
 
 
 @torch.no_grad()
-def extract_features(feat_net, device, batch_size=64):
-    """對整個 train set 抽 512 維特徵，順序 = ImageFolder.samples（= labeled_ids index 空間）。"""
+def extract_features(feat_net, device, split="train", batch_size=64):
+    """抽 512 維特徵。
+       split='train' → 整個 train set，順序 = ImageFolder.samples（= labeled_ids index 空間）。
+       split='test'  → val/ 經 stratified 50/50（random_state=42，同 data.py）切出的 test 子集。"""
     tfm = transforms.Compose([transforms.ToTensor(), transforms.Normalize([0.5]*3, [0.5]*3)])
-    ds = datasets.ImageFolder(os.path.join(DATA_DIR, "train"), tfm)
+    if split == "train":
+        ds = datasets.ImageFolder(os.path.join(DATA_DIR, "train"), tfm)
+        classes = ds.classes
+    else:  # test
+        from sklearn.model_selection import train_test_split
+        full = datasets.ImageFolder(os.path.join(DATA_DIR, "val"), tfm)
+        t = np.array(full.targets)
+        _, test_idx = train_test_split(np.arange(len(t)), test_size=0.5, stratify=t, random_state=42)
+        ds = torch.utils.data.Subset(full, sorted(test_idx.tolist()))
+        classes = full.classes
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=4)
     feat_net.to(device)
     feats, labels = [], []
@@ -93,22 +104,23 @@ def extract_features(feat_net, device, batch_size=64):
         f = feat_net(x.to(device)).flatten(1)        # (B,512)
         feats.append(f.cpu().numpy())
         labels.append(y.numpy())
-    return np.concatenate(feats), np.concatenate(labels), ds.classes
+    return np.concatenate(feats), np.concatenate(labels), classes
 
 
-def get_embedding(ckpt_path, device, method="umap", recompute=False):
+def get_embedding(ckpt_path, device, method="umap", split="train", recompute=False):
     """抽 512 維特徵 + 降到 2D（method='umap' 或 'tsne'）；
-    以 (ckpt, method) 快取（同模型同方法只算一次，跨 strategy/portion 重用）。"""
+    以 (ckpt, method, split) 快取（同模型同方法只算一次，跨 strategy/portion 重用）。"""
     stem = os.path.splitext(os.path.basename(ckpt_path))[0]
     os.makedirs(CACHE_DIR, exist_ok=True)
-    cache = os.path.join(CACHE_DIR, f"{stem}_{method}.npz")
+    tag = f"{stem}_{method}" + ("" if split == "train" else f"_{split}")
+    cache = os.path.join(CACHE_DIR, f"{tag}.npz")
     if os.path.exists(cache) and not recompute:
         d = np.load(cache, allow_pickle=True)
         print(f"[cache] {cache}")
         return d["emb"], d["labels"], list(d["classes"])
     feat_net, is_simclr = build_model(ckpt_path)
-    print(f"model: {'ResNetSimCLR' if is_simclr else 'plain resnet18'}  ({stem})")
-    X, y, classes = extract_features(feat_net, device)
+    print(f"model: {'ResNetSimCLR' if is_simclr else 'plain resnet18'}  ({stem}, split={split})")
+    X, y, classes = extract_features(feat_net, device, split=split)
     print(f"features: {X.shape}; running {method.upper()} ...")
     if method == "umap":
         import umap
@@ -225,7 +237,7 @@ def plot_umap(emb, labels, classes, selected_idx, strategy, portion, seed, out_p
     axname = "t-SNE" if method == "tsne" else "UMAP"
     ax.set_xlabel(f"{axname}-1", fontsize=20, labelpad=8)
     ax.set_ylabel(f"{axname}-2", fontsize=20, labelpad=8)
-    ax.set_title(f"{STRATEGY_LABEL.get(strategy, strategy)}   (ρ={portion:g}%, seed{seed})",
+    ax.set_title(f"{STRATEGY_LABEL.get(strategy, strategy)}   (ρ={portion:g}%)",
                  fontsize=22, pad=12)
     ax.set_xticks([]); ax.set_yticks([])
     for s in ax.spines.values():
@@ -264,6 +276,11 @@ def main():
     emb, labels, classes = get_embedding(args.ckpt, args.device, method=args.method,
                                          recompute=args.recompute)
     stem = os.path.splitext(os.path.basename(args.ckpt))[0]
+
+    if args.base:
+        out = os.path.join(args.out_dir, args.method, stem, f"5_3_{args.method}_base.png")
+        plot_base(emb, labels, classes, args.method, out)
+        return
 
     for strat in args.strategy:
         for p in args.portion:

@@ -371,7 +371,8 @@ def plot_class_trend(strategies, class_idx, class_name, labels, num_classes,
                linewidth=2.2, alpha=0.85, label="Random / Dataset")
     ax.set_xlabel(r"Labeled Training Data Ratio $\rho$ (%)", fontsize=FONT_LABEL, labelpad=10)
     ax.set_ylabel("Share of Selected Samples (%)", fontsize=FONT_LABEL, labelpad=10)
-    ax.set_title(class_name, fontsize=FONT_LABEL, pad=14)
+    ax.set_title("Healthy" if class_name == "Normal" else class_name,
+                 fontsize=FONT_LABEL, pad=14)
     ax.set_xticks(list(range(0, 61, 10)))
     ax.set_xlim(0, 61)
     style_ax(ax)
@@ -380,6 +381,30 @@ def plot_class_trend(strategies, class_idx, class_name, labels, num_classes,
                    style="line", markers=STRATEGY_MARKER, header_suffix=":")
     fig.tight_layout()
     _save(fig, out_path)
+
+
+def print_max_deviation(strategies, class_idx, class_name, labels, num_classes,
+                        base_val, seeds, mode):
+    """對某類別，逐策略找『離 Random/Dataset baseline 差最多』的 portion 與 ±pp。"""
+    disp = NAME_ABBR.get(class_name, class_name)
+    disp = "Healthy" if class_name == "Normal" else disp
+    print("\n" + "-" * 78)
+    print(f"  Max deviation vs Random/Dataset — {disp}  (baseline={base_val:.1f}%, mode={mode})")
+    print("-" * 78)
+    rows = []
+    for strat in strategies:
+        xs, means, _ = class_trend(strat, class_idx, labels, num_classes, seeds, mode)
+        if len(xs) == 0:
+            continue
+        dev = means - base_val
+        k = int(np.argmax(np.abs(dev)))
+        label = STRATEGY_STYLE.get(strat, (strat, None))[0]
+        rows.append((label, xs[k], dev[k], means[k]))
+    for label, p, d, m in rows:
+        print(f"  {label:16s}: {d:+5.1f} pp @ ρ={p:>5g}%   (share={m:.1f}%)")
+    if rows:
+        label, p, d, m = max(rows, key=lambda r: abs(r[2]))
+        print(f"  >> largest |Δ| : {label} {d:+.1f} pp @ ρ={p:g}%")
 
 
 def _save(fig, out_path):
@@ -426,15 +451,24 @@ def main():
 
     # ---- trend 模式：橫軸 portion、縱軸某類別 share，多策略折線 ----
     if args.plot == "trend":
-        if args.cls not in class_names:
-            print(f"[error] class '{args.cls}' 不存在；可選: {class_names}")
+        # --class all → 跑全部七類；否則跑指定單一類別
+        if args.cls.lower() == "all":
+            target_classes = list(class_names)
+        elif args.cls in class_names:
+            target_classes = [args.cls]
+        else:
+            print(f"[error] class '{args.cls}' 不存在；可選: {class_names} 或 all")
             return
         strategies = args.strategy
-        class_idx = class_names.index(args.cls)
         tag = "all" if set(strategies) == set(STRATEGY_STYLE.keys()) else "_".join(strategies)
-        out = os.path.join(args.out_dir, f"5_3_trend_{args.cls.replace(' ', '')}_{tag}_{args.mode}.png")
-        plot_class_trend(strategies, class_idx, args.cls, labels, num_classes,
-                         base_share[class_idx], args.seeds, args.mode, out)
+        for cls in target_classes:
+            class_idx = class_names.index(cls)
+            out = os.path.join(args.out_dir,
+                               f"5_3_trend_{cls.replace(' ', '')}_{tag}_{args.mode}.png")
+            plot_class_trend(strategies, class_idx, cls, labels, num_classes,
+                             base_share[class_idx], args.seeds, args.mode, out)
+            print_max_deviation(strategies, class_idx, cls, labels, num_classes,
+                                base_share[class_idx], args.seeds, args.mode)
         return
 
     results = {}

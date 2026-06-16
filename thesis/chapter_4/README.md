@@ -166,26 +166,54 @@ python3 thesis/chapter_4/al_curve_each_best.py
 ## F. 4.5 綜合比較（factor ablation）— Aug × Init × AL 各自貢獻
 
 目的：4.2–4.4 是「逐一疊加」策略（AL 只在有 aug4 + θ² 的情況下做過）；4.5 拆解三策略**各自**的影響量。
-兩個 Table（rows ρ = 10 / 30 / 50%；AL 代表策略 = **margin**，4.4 所有方法中最好、已定案 2026-06-12）：
-- **Table 1（一次只開一個）**：Data Aug (4x) | Weight Init (θ²) | AL (margin) | All Three
+兩個 Table（rows ρ = 10 / 30 / 50%；AL cell 的策略可選 **margin / coreset / cluster_margin**，
+margin 為 4.4 最佳、預設代表，另兩個可一併跑做穩健性對照）：
+- **Table 1（一次只開一個）**：Data Aug (4x) | Weight Init (θ²) | AL (strategy) | All Three
 - **Table 2（一次只關一個）**：w/o Data Aug | w/o Weight Init | w/o AL | All Three
 
 「關」的定義：Aug 關 = no_aug；Init 關 = ImageNet；AL 關 = passive random（cold-start）。
-7 個 cell 中 3 個直接用主實驗既有資料（aug_only=4.2、wo_al=4.3 θ²、all_three=4.4 margin），
-只需新跑 4 個 arm，結果**隔離**在 `classification/exp_results/chapter4_5_ablation/{arm}/`（勿與主實驗混）。
+7 個 cell 中 3 個直接用主實驗既有資料（aug_only=4.2、wo_al=4.3 θ²、all_three=4.4），
+只需新跑 4 個 arm（init_only + 三個 AL arm），結果**隔離**在
+`classification/exp_results/chapter4_5_ablation/{arm}/`（勿與主實驗混）。
+
+**AL arm 可指定策略**（`STRATEGY=margin|coreset|cluster_margin`，預設 margin）→ 完整一輪 =
+**1 + 3×3 = 10 條**：init_only 是 passive、與策略無關只跑 1 次；三個 AL arm（al_only/wo_aug/wo_init）
+各跑 3 個策略。三策略結果檔名各自獨立、可並存。⚠️ 是底線 `cluster_margin`，連字號會被防呆擋下。
+**正式下法（portions 明寫；passive 只跑 3 點、AL 跑整條軌跡）：**
 
 ```bash
-# cold-start arm（最便宜：只跑 ρ=10/30/50 三點 × 5 seeds × 3 runs × lr 網格；MAX_PAR 並行）
-ARM=init_only DEVICE=cuda:0 ./thesis/chapter_4/run_4_5_ablation.sh
+# (1) 情境2  Weight Init only (no_aug, θ², passive) — cold-start，只要表格 3 點（與策略無關）
+ARM=init_only DEVICE=cuda:7 PORTIONS="10 30 50" ./thesis/chapter_4/run_4_5_ablation.sh # 已下
 
-# 三條 AL 軌跡（margin，ρ=2.5→50、interval 2.5、5 seeds；可用 SEEDS 拆卡並行）
-ARM=al_only  DEVICE=cuda:1 ./thesis/chapter_4/run_4_5_ablation.sh   # no_aug + ImageNet + margin
-ARM=wo_aug   DEVICE=cuda:2 ./thesis/chapter_4/run_4_5_ablation.sh   # no_aug + θ²       + margin
-ARM=wo_init  DEVICE=cuda:3 ./thesis/chapter_4/run_4_5_ablation.sh   # aug4   + ImageNet + margin
+# (3) 情境3  AL only (no_aug, ImageNet, AL) — AL 累積軌跡，從 2.5 連續跑（讀表只取 10/30/50）
+ARM=al_only STRATEGY=margin         DEVICE=cuda:1 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+ARM=al_only STRATEGY=coreset        DEVICE=cuda:1 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh
+ARM=al_only STRATEGY=cluster_margin DEVICE=cuda:1 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh
 
-# 檢視兩個 Table（缺 cell 標 NA；另印「三策略全關」參考 baseline）
-python3 thesis/chapter_4/aggregate_4_5.py
+# (3) 情境4  w/o Data Aug (no_aug, θ², AL) — AL 軌跡
+ARM=wo_aug  STRATEGY=margin         DEVICE=cuda:6 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+ARM=wo_aug  STRATEGY=coreset        DEVICE=cuda:2 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh
+ARM=wo_aug  STRATEGY=cluster_margin DEVICE=cuda:2 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh
+
+# (3) 情境5  w/o Weight Init (aug4, ImageNet, AL) — AL 軌跡
+ARM=wo_init STRATEGY=margin         DEVICE=cuda:1 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+ARM=wo_init STRATEGY=coreset        DEVICE=cuda:3 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh
+ARM=wo_init STRATEGY=cluster_margin DEVICE=cuda:3 PORTION_START=2.5 PORTION_END=52.5 PORTION_INTERVAL=2.5 ./thesis/chapter_4/run_4_5_ablation.sh
+
+## 補跑20, 40!
+ARM=init_only PORTIONS="20 40" DEVICE=cuda:7 ./thesis/chapter_4/run_4_5_ablation.sh
+
+
+# 檢視兩個 Table（每個策略一張；缺 cell 標 NA；另印「三策略全關」參考 baseline）
+python3 thesis/chapter_4/aggregate_4_5.py --strategy margin
+python3 thesis/chapter_4/aggregate_4_5.py --strategy coreset
+python3 thesis/chapter_4/aggregate_4_5.py --strategy cluster_margin
 ```
+> portions 其實等於腳本預設（init_only=`10 30 50`、AL=`2.5→52.5`），明寫只為自我說明。
+> AL 是**累積軌跡**：ρ=30% 的 labeled set 是從 2.5% 一路選上來、中間不能跳，故須整條跑，
+> 讀表時才取 10/30/50 三列；`PORTION_END=52.5` 因 `np.arange` 右開 → 實際停在 50。
+> 同一 DEVICE 上同 arm 的 3 個策略是**序列**跑（共 9 條 AL）；想加速可改卡或拆 `SEEDS="10 24 38"` 分卡。
+> aggregate 的 `--strategy` 對應的是 AL cell（含 4.4 的 all_three）；passive cell（aug_only/init_only/wo_al）與策略無關，三張表那幾欄都一樣。
 
 注意事項：
 - **lr/seed/runs 慣例與主實驗對齊**：cold-start arm 用 4.3 的 per-portion lr 網格 × 3 runs；

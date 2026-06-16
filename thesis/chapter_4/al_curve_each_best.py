@@ -41,8 +41,15 @@ def crossing_rho(curve, target=TARGET):
     return float("inf"), best_mean
 
 
-def pick_best_in_group(items, aug):
+# 某些類別固定指定方法（不走「最早達標」自動挑選），對齊 Ch5 鎖定的三巨頭。
+#   Uncertainty → Margin、Hybrid → Cluster-Margin（不論 conf/BADGE 是否更早達標）。
+#   Diversity 維持自動挑選（目前為 Core-set）。
+FORCE = {"Uncertainty": "margin", "Hybrid": "cluster_margin"}
+
+
+def pick_best_in_group(items, aug, force_key=None):
     """從一類的方法中，挑「最早達標」者；全未達標則挑 best_mean 最高者。
+    force_key 指定時，直接用該方法（不自動挑）。
     回傳 (key, label, color, marker, curve, cross_rho, reached:bool) 或 None。"""
     cands = []
     for key, label, color, marker in items:
@@ -53,6 +60,12 @@ def pick_best_in_group(items, aug):
         cands.append((key, label, color, marker, curve, cross, best_mean))
     if not cands:
         return None
+    if force_key:                                  # 指定方法 → 直接回傳該方法
+        forced = [c for c in cands if c[0] == force_key]
+        if forced:
+            c = forced[0]
+            return (*c[:6], np.isfinite(c[5]))
+        print(f"    [warn] force={force_key} 無資料 → 退回自動挑選")
     reached = [c for c in cands if np.isfinite(c[5])]
     if reached:                                   # 有達標者 → 取交叉 ρ 最小
         best = min(reached, key=lambda c: c[5])
@@ -73,12 +86,13 @@ def main():
     for gname, items in GROUPS:
         if gname == "Baseline":
             continue
-        pick = pick_best_in_group(items, args.aug)
+        pick = pick_best_in_group(items, args.aug, force_key=FORCE.get(gname))
         if pick is None:
             print(f"  {gname:<12}: 無資料"); continue
         key, label, color, marker, curve, cross, reached = pick
+        forced = " [指定]" if FORCE.get(gname) == key else ""
         tag = f"ρ≈{cross:.1f}% 首次達標" if reached else f"未達標（max mean={max(v[0] for v in curve.values()):.2f}）"
-        print(f"  {gname:<12}: {label:<14} ({tag})")
+        print(f"  {gname:<12}: {label:<14} ({tag}){forced}")
         chosen.append((label, color, marker, curve, reached))
 
     if not chosen:

@@ -119,7 +119,7 @@ Table 4-2 四欄狀態：
 ### 4.5 綜合比較各項策略 — factor ablation（設計定案 2026-06-12，待跑 4 arm）
 **目的**：4.2–4.4 是逐一疊加（AL 只做在 aug4+θ² 上）；4.5 拆解 Aug(4x)／Init(θ²)／AL 三策略**各自**貢獻。
 - **兩個 Table，rows ρ=10/30/50%**：Table 1 一次只開一個（Data Aug | Weight Init | AL | All Three）；Table 2 一次只關一個（w/o 各項 | All Three）。「關」= no_aug / ImageNet / passive random。
-- **AL 代表策略 = `margin`（user 定案 2026-06-12：4.4 所有方法中最好）**。要換策略時三個 AL arm 加 `STRATEGY=xxx` 重跑（檔名含策略名可並存；init_only 與策略無關）。
+- **AL cell 策略可選 `margin|coreset|cluster_margin`（2026-06-12 起，user 要做穩健性對照）**：`run_4_5_ablation.sh` 的三個 AL arm 都吃 `STRATEGY`（預設 margin = 4.4 最佳）；結果檔名含策略名 → 三策略各自獨立 JSON、可並存。**完整一輪 = 1（init_only，passive 與策略無關）+ 3×3（三 AL arm × 三策略）= 10 條**。防呆只收 margin/coreset/cluster_margin（底線版，連字號 cluster-margin 會被擋）。檢視用 `aggregate_4_5.py --strategy xxx`（每策略一張表，passive 欄三張都一樣）。
 - **7 cell 對照（Aug, Init, AL）**：3 個用主實驗既有資料——aug_only=(aug4,ImageNet,✗)=4.2、wo_al=(aug4,θ²,✗)=4.3 θ² best cfg、all_three=(aug4,θ²,margin)=4.4；另外 (no_aug,ImageNet,✗) 全關 baseline 也已在 4.2 的 `no_aug` key（aggregate 會印參考列）。**待跑 4 arm**：
   - `init_only`=(no_aug,θ²,✗)：cold-start **只跑 ρ=10/30/50** 三點，5 seeds×3 runs，lr 網格沿用 4.3 精簡版。
   - `al_only`=(no_aug,ImageNet,margin)、`wo_aug`=(no_aug,θ²,margin)、`wo_init`=(aug4,ImageNet,margin)：AL 軌跡 **ρ=2.5→50（interval 2.5，20 點）**，同 4.4 option A（sweep `3e-5 5e-5 1e-4 3e-4`、每 lr 1 run、best-val 選取器、5 seeds）。
