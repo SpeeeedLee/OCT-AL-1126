@@ -83,9 +83,23 @@ def parse_arguments():
                              "初始 b₀ 步即可沿用 random 在該 portion 的 best lr（初始池=random 同子集），免重掃。")
     parser.add_argument('--weight_decay', type=float, default=None)
     parser.add_argument('--no_data_aug', dest='data_aug', action='store_false', default=True)
-    parser.add_argument('--aug_factor', type=int, default=4)   
+    parser.add_argument('--aug_factor', type=int, default=4)
     parser.add_argument('--flip_type', type=str, default='horizontal')
-    
+    parser.add_argument('--portions', type=str, default=None,
+                        help="顯式 portion 清單（空白或逗號分隔，%），提供時覆寫 "
+                             "portion_start/end/interval 的等距 arange。用途：分段 b（如前段 b=2.5 到 60、"
+                             "後段 b=5 到 90）以省時。第一個值=初始隨機池(b₀)。")
+    parser.add_argument('--resume_labeled_ids', type=str, default=None,
+                        help="從既有 labeled_ids JSON 的某 portion 的 cumulative 接續跑（免重算前段）。"
+                             "搭配 --resume_from 指定接續的 portion。anchor 那步只重訓一個 selector、不選新樣本。")
+    parser.add_argument('--resume_from', type=float, default=None,
+                        help="resume 的錨點 portion（%）：載入該 portion 的 cumulative 當起始已標註集，"
+                             "之後只跑 > 此值的 portion（取自 --portions / arange）。")
+    parser.add_argument('--parallel_lr', action='store_true', default=False,
+                        help="sweep 模式：把同一 portion 的多個候選 lr 在同一張 GPU 上『同時』訓練"
+                             "（ThreadPoolExecutor，每個 lr 用自己的 DataLoader），縮短該 portion 的 wall-clock。"
+                             "結果/選取邏輯與序列版完全一致；預設關閉（4.4 主線不受影響）。")
+
     return parser.parse_args()
 
 
@@ -296,8 +310,33 @@ def main():
 
     # Active Learning Loop
     last_trained_model = None
-    
-    for portion in np.arange(args.portion_start, args.portion_end, args.portion_interval):
+
+    # portion 清單：--portions 顯式清單優先（支援分段 b），否則等距 arange
+    if args.portions:
+        portion_grid = [float(x) for x in args.portions.replace(',', ' ').split()]
+        args.portion_start = portion_grid[0]   # 第一個 = 初始隨機池 b₀（沿用既有 init 判斷）
+        print(f"Explicit portions ({len(portion_grid)}): {portion_grid}")
+    else:
+        portion_grid = list(np.arange(args.portion_start, args.portion_end, args.portion_interval))
+
+    # ===== Resume：從既有軌跡的 cumulative@resume_from 接續，免重算前段 =====
+    resuming = bool(args.resume_labeled_ids)
+    if resuming:
+        if args.resume_from is None:
+            raise ValueError("--resume_labeled_ids 需搭配 --resume_from")
+        with open(args.resume_labeled_ids, "r", encoding="utf-8") as f:
+            _rl = json.load(f)
+        _ak = str(float(args.resume_from))
+        if _ak not in _rl or "cumulative" not in _rl[_ak]:
+            raise ValueError(f"{args.resume_labeled_ids} 無 portion {_ak} 的 cumulative")
+        label_idx = list(_rl[_ak]["cumulative"])
+        unlabeled_idx = list(set(range(tot_num_train)) - set(label_idx))
+        portion_grid = [args.resume_from] + [p for p in portion_grid if p > args.resume_from]
+        args.portion_start = args.resume_from   # anchor：num_to_label=0 → 只重訓 selector、不選新樣本
+        print(f"[resume] 載入 {args.resume_labeled_ids} @ρ={_ak}% → "
+              f"起始已標註 {len(label_idx)} 張；接續 portions: {portion_grid}")
+
+    for portion in portion_grid:
         print('\n' + '=' * 60)
         print(f'PORTION: {portion}%')
         print('=' * 60)
@@ -306,7 +345,7 @@ def main():
 
         # ===== 決定本 portion 的候選下游 lr =====
         if args.lr_schedule == 'sweep':
-            if portion == args.portion_start:
+            if portion == args.portion_start and not resuming:
                 # 初始步：與 Random baseline 一致 → 用該 seed 在此 portion 的 cold-start best lr（不重掃）。
                 # 後續 portion 因 AL 選樣改變 labeled set，optimal lr 會不同 → 自己 sweep。
                 blr = coldstart_best_lr(args.seed, portion, args.coldstart_lr_path or args.exp_path,
@@ -398,34 +437,47 @@ def main():
 
         # ===== Sweep 候選 lr：各自 fresh-init 訓練，用 val loss 最低者當「選取器」(option A) =====
         criterion = nn.CrossEntropyLoss()
-        best = {"val": float('inf'), "model": None, "lr": None, "acc": None}
-        for lr_str in cand_lrs:
+
+        def _train_one_lr(lr_str):
             lr_f = float(lr_str)
-            lr_key = str(lr_f)
+            # 並行模式：每個 lr 用自己的 data_loaders（多執行緒不可共享同一 DataLoader iterator）
+            if args.parallel_lr and len(cand_lrs) > 1:
+                if args.data_aug:
+                    dl, ds = get_data(data_dir, label_idx, batch_size, data_aug=True,
+                                      aug_factor=args.aug_factor, flip_type=args.flip_type)
+                else:
+                    dl, ds = get_data(data_dir, label_idx, batch_size, data_aug=False)
+            else:
+                dl, ds = data_loaders, dataset_sizes
             print('=' * 50)
             print(f'===== ρ={portion}% | init={args.pretrained_weights} | seed={args.seed} | '
                   f'aug={aug_key} | lr={lr_f} | bs={batch_size} | ep={args.epoch} | n={len(label_idx)} =====')
             model = build_model(args.pretrained_weights, num_classes, args.simclr_path)
             if args.weight_decay is not None:
-                optimizer_ = optim.AdamW(model.parameters(), lr=lr_f, weight_decay=args.weight_decay)
+                opt = optim.AdamW(model.parameters(), lr=lr_f, weight_decay=args.weight_decay)
             else:
-                optimizer_ = optim.AdamW(model.parameters(), lr=lr_f)
-            lr_scheduler_ = lr_scheduler.LinearLR(
-                optimizer_, start_factor=1.0, end_factor=0.0, total_iters=args.epoch)
+                opt = optim.AdamW(model.parameters(), lr=lr_f)
+            sch = lr_scheduler.LinearLR(opt, start_factor=1.0, end_factor=0.0, total_iters=args.epoch)
+            tm, acc, vl = train_model(model, args.device, dl, ds, criterion, opt, sch,
+                                      num_epochs=args.epoch)
+            return {"lr": lr_f, "lr_key": str(lr_f), "acc": round(acc, 4), "val": vl, "model": tm}
 
-            trained_model, test_acc, val_loss = train_model(
-                model, args.device, data_loaders, dataset_sizes,
-                criterion, optimizer_, lr_scheduler_, num_epochs=args.epoch
-            )
-            test_acc = round(test_acc, 4)
-            print(f'  -> lr={lr_f}: val_loss={val_loss:.4f}  test_acc={test_acc}')
+        if args.parallel_lr and len(cand_lrs) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            print(f'[parallel_lr] 同一 GPU 並行訓練 {len(cand_lrs)} 個 lr: {cand_lrs}')
+            with ThreadPoolExecutor(max_workers=len(cand_lrs)) as ex:
+                results = list(ex.map(_train_one_lr, cand_lrs))
+        else:
+            results = [_train_one_lr(s) for s in cand_lrs]
 
-            data[aug_key][portion_key].setdefault(lr_key, {"acc": [], "labeled_idx": []})
-            data[aug_key][portion_key][lr_key]["acc"].append(test_acc)
-            data[aug_key][portion_key][lr_key]["labeled_idx"].append(label_idx.copy())
-
-            if val_loss < best["val"]:
-                best = {"val": val_loss, "model": trained_model, "lr": lr_f, "acc": test_acc}
+        best = {"val": float('inf'), "model": None, "lr": None, "acc": None}
+        for r in results:
+            data[aug_key][portion_key].setdefault(r["lr_key"], {"acc": [], "labeled_idx": []})
+            data[aug_key][portion_key][r["lr_key"]]["acc"].append(r["acc"])
+            data[aug_key][portion_key][r["lr_key"]]["labeled_idx"].append(label_idx.copy())
+            print(f'  -> lr={r["lr"]}: val_loss={r["val"]:.4f}  test_acc={r["acc"]}')
+            if r["val"] < best["val"]:
+                best = {"val": r["val"], "model": r["model"], "lr": r["lr"], "acc": r["acc"]}
 
         # val 最佳的 model 當下一步的選取器（option A 核心：用最好的 model 去選 label）
         last_trained_model = best["model"]

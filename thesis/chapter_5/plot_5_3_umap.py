@@ -42,7 +42,7 @@ OUT_DIR = os.path.join(REPO, "thesis", "chapter_5", "figs")
 CACHE_DIR = os.path.join(REPO, "thesis", "chapter_5", "umap_cache")
 
 # 顯示名稱（與 5.3 其它圖一致）
-NAME_ABBR = {"Seborrhoeic keratosis": "SK", "Solar lentigo": "SL"}
+NAME_ABBR = {"Normal": "Healthy", "Seborrhoeic keratosis": "SK", "Solar lentigo": "SL"}
 # 7 類各自顏色 + marker（ImageFolder 字母序：Eczema,Nevus,Normal,Psoriasis,SK,SL,Vitiligo）
 CLASS_COLORS = ["#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "#A65628", "#F781BF"]
 CLASS_MARKERS = ["o", "s", "^", "D", "v", "P", "X"]
@@ -168,7 +168,8 @@ def plot_base(emb, labels, classes, method, out_path):
     print(f"[saved] {out_path}")
 
 
-def load_selected(strategy, portion, seed, mode="cumulative"):
+def load_selected(strategy, portion, seed, mode="cumulative", exclude_init=False):
+    """exclude_init=True：扣掉初始隨機 b₀(=2.5%) 池，只留 AL 真正自己選的影像。"""
     path = os.path.join(LABELED_IDS_DIR, f"{strategy}_seed{seed}_bs16.json")
     if not os.path.exists(path):
         return None
@@ -176,7 +177,14 @@ def load_selected(strategy, portion, seed, mode="cumulative"):
     pk = str(float(portion))
     if pk not in d:
         return None
-    return d[pk][mode]
+    sel = list(d[pk][mode])
+    if exclude_init:
+        # 初始隨機池 = 最小 portion(通常 2.5%) 的 cumulative
+        init_key = min(d.keys(), key=float)
+        init_set = set(d[init_key].get("cumulative", []))
+        sel = [i for i in sel if i not in init_set]
+        print(f"  [exclude_init] 扣掉 ρ={init_key}% 初始隨機 {len(init_set)} 張 → 剩 AL 自選 {len(sel)} 張")
+    return sel
 
 
 def plot_umap(emb, labels, classes, selected_idx, strategy, portion, seed, out_path,
@@ -266,6 +274,8 @@ def main():
     ap.add_argument("--base", action="store_true",
                     help="只畫純特徵空間（類別著色、無任何選取標註），不跑各 AL")
     ap.add_argument("--recompute", action="store_true", help="強制重算 UMAP（忽略快取）")
+    ap.add_argument("--exclude_init", action="store_true",
+                    help="扣掉初始隨機 b₀(=2.5%%) 池，只框 AL 真正自己選的影像（檔名加 _noinit）")
     ap.add_argument("--out_dir", default=OUT_DIR)
     args = ap.parse_args()
 
@@ -284,12 +294,14 @@ def main():
 
     for strat in args.strategy:
         for p in args.portion:
-            sel = load_selected(strat, p, args.seed, args.mode)
+            sel = load_selected(strat, p, args.seed, args.mode, exclude_init=args.exclude_init)
             if sel is None:
                 print(f"[skip] {strat} @ {p}% (no labeled_ids)")
                 continue
             # 依 method / feature-extractor 模型分子資料夾。box 不加後綴、star 加 _star
             suffix = "" if args.highlight == "box" else f"_{args.highlight}"
+            if args.exclude_init:
+                suffix += "_noinit"
             out = os.path.join(args.out_dir, args.method, stem,
                                f"5_3_{args.method}_{strat}_p{p:g}_seed{args.seed}_{args.mode}{suffix}.png")
             plot_umap(emb, labels, classes, sel, strat, p, args.seed, out,

@@ -231,6 +231,53 @@ python3 thesis/chapter_5/plot_5_3_selection_dist.py --plot trend \
   每張＝原始 AL（實線）vs **Class Redistribution Only**（同色虛線、空心 marker、含 error bar）＋ Random（灰虛線參考）。
 - **解讀**：redistribution-only 若 ≈ AL → 類別重分布即足以解釋；若 ≈ Random → 逐影像挑選才是關鍵。
 
+### 5.3.3　代表性影像討論（最具/最不具資訊量之影像）— 設計（待實作）
+**核心問題**：AL「最先選」與「到高 portion 都不選」的影像各長什麼樣？只訓練在這兩極端上，效能差多少？
+反向理解「`D_train` 中哪些影像對模型最有/最沒幫助(甚至有害)」。
+
+**三臂 fine-tune 比較（皆 ρ=10% = 203 張、seed 42、同 one-shot 協定：θ²/aug4/sweep-lr→best）**
+| 臂 | 標註集 = | 來源 |
+|---|---|---|
+| **Random 10%** | 該 seed 隨機子集 | cold-start 既有（可重建 index）|
+| **AL top-10%** | Margin/Core-set/Cluster-Margin 在 ρ=10% 的 **cumulative**（最先選的） | `AL_simclr/labeled_ids` 既有 |
+| **Bottom-10%** | 該方法 AL **跑到 ρ=90% 後仍未被選**的 leftover（全 train 池 \ cumulative@90%） | **需延伸跑 AL 到 90%**（見下） |
+- 預期：**AL top > Random > Bottom**；若 Bottom 甚至低於 Random，才足以稱這些影像「相對有害」。
+- ⚠️ **類別分布 confound（必做）**：Bottom-10% 極可能高度 Healthy-skewed → 它差可能來自「類別極偏」而非「影像沒用」。
+  **務必同時印出三臂的類別分布**，解讀時分清楚（呼應 5.3.1 重分布故事）。
+- per-method：Bottom 與 AL-top 各方法一組；Random 共用。
+
+**視覺化（每類別取 10 張縮圖呈現三臂）**
+- Random / AL-top / Bottom 各自每個類別抽 10 張展示。
+- **AL-top 視覺化要扣掉初始隨機 2.5%**（只顯示 AL 真正挑的 `selected`，非含 random 起點的 cumulative）；
+  但 **fine-tune 仍用完整 cumulative@10%**（才對得上「標準 AL@10%」語意）。
+- 另附 Bottom-10% 的類別分布長條 + 歸納其影像特徵（多為典型多數類、清晰無病灶歧義…，看圖再寫）。
+
+**延伸 AL 到 90%（取得 Bottom-10% leftover；只跑 seed 42、標準 sweep-lr 協定）**
+- AL 軌跡本是 stateful（從 `portion_start` 用 `random.seed` 重建）。`run_AL.py` 新增 **`--resume_labeled_ids` + `--resume_from`**：
+  直接載入 4.4 既有軌跡的 **cumulative@60%** 當起始已標註集，**只重訓一個 selector（anchor=60%，不選新樣本，因 cum@60=1219=target）**、
+  再跑 65→90，**免重算前段 2.5→57.5**（三方法 cum@60 都剛好 1219）。腳本預設已開啟 resume@60。
+- 寫到**隔離 exp_path**（`ch5_5_3_3_extend/`），不污染 4.4 主線 `AL_simclr`。
+- `run_AL.py` 新增 `--parallel_lr`：把同一 portion 的多個候選 lr **在同一張 GPU 上同時訓練**（ThreadPoolExecutor，
+  每 lr 各自 DataLoader），縮短 wall-clock；選取邏輯/結果與序列版一致，預設關閉（4.4 不受影響）。
+- 一個方法一個腳本（挑空 GPU、可同時開三張卡跑）：
+```bash
+DEVICE=cuda:3 ./thesis/chapter_5/run_5_3_3_extend_margin.sh # 已下
+DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_3_extend_coreset.sh # 已下
+DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_3_extend_cluster_margin.sh # 已下
+```
+- 產出 `ch5_5_3_3_extend/classification_hard/AL_simclr/labeled_ids/{method}_seed42_bs16.json`；
+  其 `90.0` 的 `cumulative` 之**補集**即該方法的 Bottom-10%（≈203 張）。
+- **省時：分段 b（腳本預設）**。`run_AL.py` 新增 `--portions`（顯式 portion 清單，覆寫等距 arange）：
+  前段 **b₀=2.5、b=2.5 到 60**（忠於主線軌跡）、後段 **b=5 到 90**，落在 90% → leftover 剛好 10%。
+  portion 數 36→**30**，且砍掉的 6 個都是後段大資料量步（62.5/67.5/…/87.5）。可用 env `PORTIONS=` 覆寫。
+  ⚠️ caveat：ρ>60% 改 b=5 表示 AL 在後段「重評估未標註池」的頻率變低、每批選更多 → 後段選樣略粗,
+  但對「最後 10% 從未被選」的判定影響很小（這些是全程穩定高 margin/最冗餘者），可接受。
+- ⚠️ **成本**：即便分段，到 90% 後段資料量仍大（90%≈1829 張×aug4）→ 偏久；`--parallel_lr`
+  讓同 portion 的 lr 並行，但單卡 compute 仍部分序列化，實際加速為「部分」而非滿 ×N（記憶體無虞）。
+- 〔暫不做〕想法一（某 model 對未標註池的 uncertainty/margin score 分布 + top/median/bottom 影像）先擱置。
+
+**待寫**：`run_5_3_3_representative.py`（三臂 custom-idx 訓練，沿用 redistribution 那套）+ `plot_5_3_3_*.py`（縮圖格 + 類別分布 + 三臂 acc 長條）。
+
 ### 質性：UMAP / t-SNE 視覺化 — `plot_5_3_umap.py` + `plot_5_3_umap_grid.py`（✅ 已實作）
 - 用某模型的 **512 維 last-layer 特徵**（global-avgpool 後、fc 前）把 train（或 test）set 投到 2D。
   類別=顏色+marker；AL 選取的點用**星號**(`--highlight star`)或**黑色空心方框**(`--highlight box`，無 `_star` 後綴) 標出。
@@ -308,35 +355,41 @@ DEVICE=cuda:6 ./thesis/chapter_5/run_5_3_redistribution.sh
 
 # 想分卡加速：開多個 shell，各設不同 DEVICE + SEEDS 子集，例如
 SEEDS="10" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
-
 SEEDS="24" DEVICE=cuda:1 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
-
 SEEDS="38" DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
-
 SEEDS="42" DEVICE=cuda:7 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
-
 SEEDS="57" DEVICE=cuda:9 ./thesis/chapter_5/run_5_3_redistribution.sh # 已下
 
 
 # portion = {15,25,35,45,55}
-SEEDS="10" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
-SEEDS="24" DEVICE=cuda:1 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
-SEEDS="38" DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
-SEEDS="42" DEVICE=cuda:7 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
-SEEDS="57" DEVICE=cuda:7 ./thesis/chapter_5/run_5_3_redistribution_odd.sh
+SEEDS="10 24" DEVICE=cuda:1 ./thesis/chapter_5/run_5_3_redistribution_odd.sh # 已下
+SEEDS="38 42" DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_redistribution_odd.sh # 已下
+SEEDS="57" DEVICE=cuda:7 ./thesis/chapter_5/run_5_3_redistribution_odd.sh # 已下
 
 # portion = {40,50,60}
 SEEDS="10" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh # 已下
-
 SEEDS="24" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh # 已下
-
-SEEDS="38" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh
-
-SEEDS="42" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh
-
-SEEDS="57" DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_redistribution_high.sh
+SEEDS="38" DEVICE=cuda:4 ./thesis/chapter_5/run_5_3_redistribution_high.sh # 已下
+SEEDS="42" DEVICE=cuda:5 ./thesis/chapter_5/run_5_3_redistribution_high.sh # 已下
+SEEDS="57" DEVICE=cuda:6 ./thesis/chapter_5/run_5_3_redistribution_high.sh # 已下
 
 # 跑完畫圖
 python3 thesis/chapter_5/plot_5_3_redistribution.py
 # 或加 --no_random
+```
+
+
+## Bottom-10% Training
+
+```bash
+for lr in 3e-5 5e-5 1e-4 3e-4 5e-4; do
+    python3 thesis/chapter_5/run_5_3_3_bottom10.py \
+        --strategy margin --seed 42 --lr $lr --device cuda:7
+done # 已下
+
+for lr in 3e-5 5e-5 1e-4 3e-4 5e-4; do
+    python3 thesis/chapter_5/run_5_3_3_bottom10.py \
+        --strategy cluster_margin --seed 42 --lr $lr --device cuda:9
+done # 已下
+
 ```
