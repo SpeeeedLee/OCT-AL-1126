@@ -99,15 +99,17 @@ def main():
         "classification_hard/AL_simclr",
         f"{args.strategy}_seed{args.seed}_bs16.json")
 
+    MAX_RUNS = 3
     lr_key = str(args.lr)
 
-    # skip if already done
+    # skip if already done MAX_RUNS times
     if os.path.exists(out_path):
         d = json.load(open(out_path))
         existing = d.get(AUG_KEY, {}).get(PORTION_KEY, {}).get(lr_key, [])
-        if existing:
-            print(f"[skip] {args.strategy} seed{args.seed} lr={lr_key} already done: {existing}")
+        if len(existing) >= MAX_RUNS:
+            print(f"[skip] {args.strategy} seed{args.seed} lr={lr_key} already {MAX_RUNS} runs: {[f'{v*100:.2f}' for v in existing]}")
             return
+        print(f"[resume] {args.strategy} seed{args.seed} lr={lr_key}: {len(existing)}/{MAX_RUNS} runs done")
 
     bottom_idx = get_bottom10_idx(args.strategy, args.seed)
 

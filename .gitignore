@@ -7,3 +7,9 @@ dataset/
 **.zip
 
 tb_logs/
+
+embeddings/
+
+# third-party HF-cloned package: ships an LFS .gitattributes (*.pth/*.bin filter=lfs)
+# + large weights → keep local only, don't track (git-lfs not installed → would fatal)
+feature_extract/MedImageInsights/

@@ -162,6 +162,38 @@ python3 thesis/chapter_5/plot_b_ablation.py
 - b₀ 大小取 5.1 結論的最佳值；後續 b 步固定用三大策略各自最佳。
 - 看「換更聰明的 b₀」是否讓整條軌跡（尤其低 ρ 段）顯著上移。
 
+### ✅ 已實作：foundation-model embedding + clustering 選初始集（`coldstart_fm/`）
+忠實實作上述 **2026 那篇（arXiv:2601.18532）** 的選樣演算法，且做成 **model-agnostic**：任何 FM 當
+frozen 特徵抽取器，後面接同一套 clustering 選 b₀。詳見 `thesis/chapter_5/coldstart_fm/README.md`。
+- **演算法**：FM embedding → **t-SNE 2D** → 對每個 k 跑 KMeans 取 **silhouette** 最高者 k̂ →
+  KMeans(k̂)、各群 **medoid** 當種子 → 剩餘預算 **按群大小比例** 分配 → 群內 **greedy farthest-point**。
+  （合成 7-blob 資料可正確回收 k̂=7；真實 OCT embedding 上 silhouette 多選 **小 k̂≈2–4**＝這些 embedding
+  空間的自然結構是少數大群、非 7 診斷類，故預算主要靠 proportional + FPS 覆蓋鋪開。）
+- **三步驟（皆 repo root 執行）**：
+  1. `coldstart_fm/extract_embeddings.py --all --device cuda:N` → 抽 D_train(2032) 特徵存 `embeddings/{model}.pt`
+     （ImageFolder 順序＝train index，與 `run_AL`/`get_data` 一致；灰階→RGB；有 head 的模型取 penultimate）。
+  2. `coldstart_fm/select_coldstart.py --model <id>` → 在 **ρ=2.5/10/20%** 選樣，存 `labeled_ids/{model}.json`
+     （**沿用既有 labeled_ids schema**：`{portion:{selected,cumulative,k_hat,...}}`）。
+  3. 訓練：① 一鏡到底 one-shot `coldstart_fm/run_coldstart_fm.py` + `.sh`（獨立檔、未動 core；θ²/aug4/
+     sweep-lr；結果寫 `coldstart_fm_simclr/{model}_bs16.json`）。**⚠️ 不需 seed**：選樣 deterministic（固定 ID）→
+     seed 只擾動訓練雜訊；故 tune lr、跑 3 runs、取 **best-lr → mean±std over its runs**（非 per-seed-over-
+     subsets）。`.sh` 已移除 `SEEDS`（env 只剩 `MODELS/PORTIONS/DEVICE/PARALLEL`）；舊的 seed 檔會被 plot
+     當額外 reps pool 進去。`--parallel_runs 3` 可把一個 lr 的 3 runs 同卡並行。畫圖 `plot_coldstart_fm.py`
+     （一 portion 一張長條圖，best-lr→mean±std；Random 為 θ² cold-start 5 random subsets 參考）。
+     ② 當 AL 初始池＝**直接用既有** `run_AL.py --resume_labeled_ids <json> --resume_from 2.5`（**零修改 core**）。
+- **已產出（13 個模型 × ρ{2.5,10,20}，全數 integrity-verified）**：**`simclr:resnet18`（＝我們自己的 θ²
+  SimCLR backbone，512-d penultimate、codebase 原生 transform 全解析度；in-domain 自訓對照點，與下游
+  one-shot trainer 同一個 ckpt `resnet18_simclr_lr0.0002_bs256_ep500.pkl`）**、`resnet_imagenet:{18,50,101}`、
+  `dinov2:{small,base,large}`、`clip:{base,large}`、`radimagenet:resnet50`（＝原 paper 抽取器）、
+  `biomedclip:base`、**`retfound:oct`**（retinal OCT，HF gated 已取得 access；載 `.pth` 進 timm ViT-L/16、
+  missing=0/unexpected=0、無 remote code）、**`medimageinsight:base`**（用既有 `feature_extract/MedImageInsights/`
+  本地 package＝Microsoft UniCL；裝 einops/mup/fvcore/tenacity；吃 base64 bytes 故走 `input_mode='path'`；
+  **修了 bug**：原 `load_model()` 漏 `model.eval()`→dropout 開著特徵不確定，已強制 eval）。
+- **k̂ 觀察**：silhouette 在真實 OCT embedding 多選小 k̂（2–4）；retfound:oct 的 silhouette 最高（k̂=2, 0.51）。
+- **未跑**：`retfound:cfp`（color-fundus，比 :oct 更遠離皮膚 OCT；同一 gated access）。
+- **域不匹配（誠實寫進論文）**：我們是 **灰階皮膚 OCT**，這些 FM 沒一個完全匹配（RadImageNet=放射、
+  BiomedCLIP=生醫文獻、RETFound=*視網膜* OCT）→ 這正是 §5.2 要比的對象（現成 FM embedding vs 自訓 SimCLR θ²）。
+
 ---
 
 ## 5.3　所選影像之分析（量化 + 質性）
@@ -392,4 +424,35 @@ for lr in 3e-5 5e-5 1e-4 3e-4 5e-4; do
         --strategy cluster_margin --seed 42 --lr $lr --device cuda:9
 done # 已下
 
+for lr in 3e-5 5e-5 1e-4 3e-4 5e-4; do
+    python3 thesis/chapter_5/run_5_3_3_bottom10.py \
+        --strategy coreset --seed 42 --lr $lr --device cuda:8
+done # 已下
+
+```
+
+
+## 
+
+```bash
+PARALLEL=3 MODELS="resnet_imagenet:resnet18 resnet_imagenet:resnet50" PORTIONS="2.5 10 20" DEVICE=cuda:4 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="resnet_imagenet:resnet101 dinov2:small"            PORTIONS="2.5 10 20" DEVICE=cuda:5 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="retfound:oct medimageinsight:base"                PORTIONS="2.5 10 20" DEVICE=cuda:6 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="simclr:resnet18" PORTIONS="2.5 10 20" DEVICE=cuda:9 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="dinov2:base dinov2:large"                          PORTIONS="2.5 10 20" DEVICE=cuda:8 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="clip:base clip:large"                              PORTIONS="2.5 10 20" DEVICE=cuda:3 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
+
+PARALLEL=3 MODELS="resnet_imagenet:resnet152" PORTIONS="2.5 10 20" DEVICE=cuda:1 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="radimagenet:resnet50 biomedclip:base"             PORTIONS="2.5 10 20" DEVICE=cuda:4 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
+
+
+# plot results
+python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py          # all 3 portions at once
+python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py --portions 10   # just one
 ```
