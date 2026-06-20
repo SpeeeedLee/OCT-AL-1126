@@ -45,19 +45,27 @@ AUG = "aug4"
 # --------------------------------------------------------------------------- #
 FAMILIES = [
     ("Random",                  [("random",               "",    "#7F7F7F")]),
-    ("ResNet\n(ImageNet)", [("resnet_imagenet:resnet18",  "18",  "#9ECAE1"),
+    ("ResNet\n(ImageNet)", [("resnet_imagenet:resnet18",  "18",  "#C6DBEF"),
+                            ("resnet_imagenet:resnet34",   "34",  "#9ECAE1"),
                             ("resnet_imagenet:resnet50",   "50",  "#6BAED6"),
-                            ("resnet_imagenet:resnet101",  "101", "#2171B5"),
-                            ("resnet_imagenet:resnet152",  "152", "#08306B")]),
-    ("ResNet\n(RadImageNet)", [("radimagenet:resnet50",    "50",  "#E6550D")]),
-    ("ResNet\n(SimCLR; Ours)",  [("simclr:resnet18",      "18",  "#E6A817")]),
+                            ("resnet_imagenet:resnet101",  "101", "#3182BD"),
+                            ("resnet_imagenet:resnet152",  "152", "#08519C")]),
+    ("ResNet\n(SimCLR; Ours)",  [("simclr:resnet18",      "18",  "#FCE38A"),
+                                 ("simclr:resnet50",       "50",  "#F4C430"),
+                                 ("simclr:resnet101",      "101", "#D4A017"),
+                                 ("simclr:resnet152",      "152", "#9C7A00")]),
+    # TEMP: SimCLR best-val-loss ckpts (vs last-epoch above) — overfitting probe
+    ("ResNet\n(SimCLR best)",   [("simclr:resnet50_best",  "50",  "#E0A030"),
+                                 ("simclr:resnet152_best", "152", "#C9820A")]),
+    (   "ResNet\n(RadImageNet)", [("radimagenet:resnet50",    "50",  "#E6550D")]),
     ("DINOv2",             [("dinov2:small",               "S",   "#A1D99B"),
                             ("dinov2:base",                "B",   "#41AB5D"),
                             ("dinov2:large",               "L",   "#006D2C")]),
     ("CLIP",               [("clip:base",                  "B",   "#BCBDDC"),
                             ("clip:large",                 "L",   "#6A51A3")]),
     ("BiomedCLIP",         [("biomedclip:base",            "",    "#1FA191")]),
-    ("RETFound\n(OCT)",    [("retfound:oct",               "",    "#CB181D")]),
+    ("RETFound",           [("retfound:oct",               "OCT", "#CB181D"),
+                            ("retfound:cfp",               "CFP", "#99000D")]),
     ("MedImageInsight",    [("medimageinsight:base",       "",    "#8C6D31")]),
 ]
 
@@ -179,6 +187,23 @@ def _text_color(hex_color):
 _HATCH_CNN, _HATCH_VIT = "//", "oo"
 
 
+# x-tick label styling by pretraining-data DOMAIN (caption explains).
+# medical = bold dark-red, natural = normal black, Random baseline = grey.
+# NB: our SimCLR counts as medical (pretrained on our skin-OCT data).
+_DOMAIN_MEDICAL = {"ResNet\n(SimCLR; Ours)", "ResNet\n(SimCLR best)", "ResNet\n(RadImageNet)",
+                   "BiomedCLIP", "RETFound", "MedImageInsight"}
+_DOMAIN_NATURAL = {"ResNet\n(ImageNet)", "DINOv2", "CLIP"}
+
+
+def _label_style(disp):
+    """(color, fontweight) for the x-tick label of family `disp`."""
+    if disp == "Random":
+        return "#000000", "bold"            # baseline (black)
+    if disp in _DOMAIN_MEDICAL:
+        return "#9E2A2B", "bold"            # medical-image model (dark red)
+    return "#1B7837", "bold"                # natural-image model (dark green)
+
+
 def _hatch_for(disp):
     """Two textures by backbone family (color = model identity; hatch = architecture):
     CNN-based (all ResNet variants) vs ViT-based (everything else — DINOv2/CLIP/BiomedCLIP/
@@ -234,15 +259,20 @@ def draw(portion, data, rb, out):
     ax.set_ylim(y0, y1)
 
     # annotations (after ylim is fixed): accuracy ON TOP, size token in the MIDDLE of the bar
-    size_tokens = []                              # (Text artist, color) → underline later
+    from matplotlib import patheffects as pe
+    # FIXED token height = a fraction of the Random bar's height (same for every bar)
+    TOKEN_FRAC = 0.5                              # ← 0.x × Random bar height
+    _rand = rb.get(portion)
+    _rand_top = _rand[0] if _rand else (y0 + (y1 - y0) * 0.25)
+    TOKEN_Y = y0 + (_rand_top - y0) * TOKEN_FRAC
     for xpos, mean, std, color, size, multi, hatch in bars:
         ax.text(xpos, mean + std + (y1 - y0) * 0.012, f"{mean:.1f}", ha="center",
                 va="bottom", fontsize=FONT_TICK - 6, color="#222222")
-        if size:                                  # italic, inside the bar (underlined below)
-            t = ax.text(xpos, (y0 + mean) / 2.0, size, ha="center", va="center",
+        if size:                                  # VERTICAL italic token at a FIXED height
+            t = ax.text(xpos, TOKEN_Y, size, ha="center", va="center",
                         fontsize=FONT_TICK, fontstyle="italic", fontweight="bold",
-                        color=_text_color(color), zorder=4)
-            size_tokens.append((t, color))
+                        color="white", rotation=90, zorder=4)
+            t.set_path_effects([pe.withStroke(linewidth=2.5, foreground="black")])  # halo → clear on any bar
 
     # span ALL family ticks (incl. trailing families with no bar yet, e.g. MedImageInsight),
     # else matplotlib auto-clips x to the drawn bars and drops their tick labels.
@@ -251,13 +281,30 @@ def draw(portion, data, rb, out):
     # ha="right" + va="top" + rotation_mode="anchor": anchors the TOP of each label block at
     # the tick → every label's first line ("ResNet"/"RETFound"/"Random"/…) top-aligns,
     # and 2nd lines hang below (no overflow past the axis edges).
-    ax.set_xticklabels([d for d, _ in fam_ticks], fontsize=FONT_LEGEND + 2,
-                       rotation=45, ha="right", va="top", rotation_mode="anchor")
+    ax.set_xticklabels([d for d, _ in fam_ticks],
+                       rotation=30, ha="right", va="top", rotation_mode="anchor")
     ax.set_ylabel("Accuracy (%)", fontsize=FONT_LABEL, labelpad=10)
     ax.set_title(rf"$\rho$ = {portion:g}%", fontsize=FONT_LABEL, pad=14)
     style_ax(ax)
     ax.set_axisbelow(True)
     ax.grid(axis="y", alpha=0.3)
+    # x-tick label size/color/weight — set AFTER style_ax (which resets labelsize to FONT_TICK).
+    # XTICK_FS = (FONT_LEGEND + 2) * 0.8          # ← tweak this to resize the family labels
+    XTICK_FS = 18          # ← tweak this to resize the family labels
+    # nudge the whole (right-anchored) label group rightward so it sits around its bar
+    # group's centre (slightly right of it). Increase to shift further right.
+    from matplotlib.transforms import ScaledTranslation
+    XTICK_SHIFT_IN = 0.32                        # ← inches to shift ALL labels right
+    XTICK_EXTRA_IN = {"MedImageInsight": 0.48}    # ← per-family extra right shift (inches)
+    for lab, (disp, _) in zip(ax.get_xticklabels(), fam_ticks):
+        c, w = _label_style(disp)               # color/weight by pretraining-data domain
+        lab.set_color(c)
+        lab.set_fontweight(w)
+        lab.set_fontsize(XTICK_FS)
+        lab.set_multialignment("right")         # right-align both lines → shared right edge at
+        lab.set_linespacing(0.95)               # the tick (just under axis); neither line crosses
+        dx = XTICK_SHIFT_IN + XTICK_EXTRA_IN.get(disp, 0.0)
+        lab.set_transform(lab.get_transform() + ScaledTranslation(dx, 0.0, fig.dpi_scale_trans))
     # Random reference line across the whole axis
     rbv = rb.get(portion)
     if rbv:
@@ -269,18 +316,6 @@ def draw(portion, data, rb, out):
                        Patch(facecolor="white", edgecolor="black", hatch=_HATCH_VIT, label="ViT-based")],
               loc="upper right", fontsize=FONT_LEGEND, framealpha=0.9, ncol=2,
               columnspacing=1.0, handlelength=1.6)
-
-    # underline each italic size token (mathtext has no \underline here): draw a line
-    # under the rendered text's bbox, in data coords.
-    fig.canvas.draw()
-    inv = ax.transData.inverted()
-    rend = fig.canvas.get_renderer()
-    for t, color in size_tokens:
-        bb = t.get_window_extent(renderer=rend)
-        (xa, ya), (xb, _) = inv.transform([(bb.x0, bb.y0), (bb.x1, bb.y0)])
-        pad = (xb - xa) * 0.08
-        ax.plot([xa - pad, xb + pad], [ya, ya], color=t.get_color(),
-                linewidth=1.8, zorder=5, solid_capstyle="butt")
 
     fig.tight_layout()
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)

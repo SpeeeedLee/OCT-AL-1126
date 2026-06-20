@@ -64,6 +64,18 @@ parser.add_argument('--device', default='cuda:0', type=str, help='Gpu index.')
 
 parser.add_argument('--sam', action='store_true',
                     help='Whether or not to use sharpness sware minimization.')
+parser.add_argument('--val-open', dest='val_open', action='store_true', default=False,
+                    help='Enable held-out contrastive validation (val-half, every 10 epochs). '
+                         'When on, ckpts get a _wval suffix (+ a _best.pkl at lowest val-loss) so '
+                         'the original no-val ckpts are never overwritten. Default off.')
+parser.add_argument('--grad_cache', default='auto', choices=['auto', 'on', 'off'],
+                    help="Use GradCache training. 'auto' (default): resnet18 → plain train(), "
+                         "larger archs → GradCache. 'off': force the plain train() path for ALL "
+                         "archs (identical to resnet18; will need enough VRAM for full bs). "
+                         "'on': force GradCache for all archs.")
+parser.add_argument('--micro_bs', default=64, type=int,
+                    help='GradCache micro-batch (per-view rows), used only when GradCache is active. '
+                         'Pick the largest that fits to minimize the BatchNorm-per-microbatch gap.')
 
 def main():
     args = parser.parse_args()
@@ -85,6 +97,20 @@ def main():
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, drop_last=True)
 
+    # held-out contrastive validation — ONLY when --val-open (else original no-val behaviour).
+    # Same val-half as classification get_data; one big batch (~254 imgs) so InfoNCE negatives
+    # ≈ training's. num_workers=0 → RNG snapshot in simclr._run_validation fully controls it.
+    val_loader = None
+    if args.val_open:
+        val_dataset = dataset.get_val_dataset(args.n_views)
+        if val_dataset is not None:
+            val_loader = torch.utils.data.DataLoader(
+                val_dataset, batch_size=4096, shuffle=False, num_workers=0,
+                pin_memory=True, drop_last=False)
+            print(f"Contrastive validation ON: {len(val_dataset)} images (val-half), one batch.")
+        else:
+            print("[warn] --val-open set but no val/ folder found → running without validation.")
+
     model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim)
 
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
@@ -98,12 +124,22 @@ def main():
     #  It’s a no-op if the 'gpu_index' argument is a negative integer or None.
     with torch.cuda.device(args.device):
         simclr = SimCLR(model=model, optimizer=optimizer, scheduler=scheduler, args=args)
+        # GradCache routing (--grad_cache auto|on|off):
+        #   auto → resnet18 plain train(); larger archs GradCache (default).
+        #   off  → plain train() for ALL archs (identical path to resnet18; needs full-bs VRAM).
+        #   on   → GradCache for ALL archs.
+        # resnet18's plain train() is byte-for-byte untouched, so it always reproduces.
+        is_resnet18 = args.arch in ("resnet18", "resnet18_random")
+        use_gradcache = (args.grad_cache == 'on') or (args.grad_cache == 'auto' and not is_resnet18)
         if args.sam:
             print('Train with Sharpness aware minimization!')
             simclr.train_with_sam(train_loader)
+        elif use_gradcache:
+            print(f'GradCache Training (arch={args.arch}, micro_bs={args.micro_bs})!')
+            simclr.train_gradcache(train_loader, micro_bs=args.micro_bs, val_loader=val_loader)
         else:
-            print('Normal Training!')
-            simclr.train(train_loader)
+            print(f'Normal Training (no GradCache, arch={args.arch})!')
+            simclr.train(train_loader, val_loader=val_loader)
 
 
 if __name__ == "__main__":

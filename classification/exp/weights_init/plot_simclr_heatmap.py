@@ -654,17 +654,30 @@ def plot_grouped_bar(
     annotate=True,
     ymin=None,
     ymax=None,
+    by_epoch=False,
 ):
     """
     Grouped bar chart of the SAME matrix as the heatmap（碩論樣式）。
 
-    x-axis groups = SimCLR pretraining batch size.
-    Within each batch-size group, one bar per SimCLR pretraining epoch (legend).
+    by_epoch=False（預設）：x-axis groups = SimCLR pretraining batch size、
+        每群一根 bar / epoch（legend）。
+    by_epoch=True：轉置——x-axis groups = SimCLR pretraining epoch、
+        每群一根 bar / batch size（legend）。
     黑色誤差棒 = std（跨 seed×run）。y 軸自動 zoom，小差異才看得出來。
 
     matrix[i, j] / std_matrix[i, j] = (batch_sizes[i], epochs[j])；NaN cell 跳過。
     """
     import matplotlib.cm as cm
+
+    if by_epoch:                      # 轉置：x 軸改成 epoch、legend 改成 batch size
+        matrix = matrix.T
+        std_matrix = std_matrix.T
+        batch_sizes, epochs = epochs, batch_sizes
+        x_label = "SimCLR Pretraining Epoch"
+        legend_title = "Pretraining Batch Size"
+    else:
+        x_label = "SimCLR Pretraining Batch Size"
+        legend_title = "Pretraining Epoch"
 
     # 碩論風格：sans-serif、大字級、粗框（與 al_curve / portion_curve 對齊）
     FONT_LABEL, FONT_TICK, FONT_LEGEND = 24, 18, 15
@@ -680,7 +693,7 @@ def plot_grouped_bar(
     bar_w = total_width / max(n_ep, 1)
     colors = cm.viridis(np.linspace(0.12, 0.9, n_ep))   # 顏色 = epoch
 
-    fig, ax = plt.subplots(figsize=(max(9.5, n_bs * 2.0), 6.5))
+    fig, ax = plt.subplots(figsize=(max(13.5, n_bs * 2.7), 6.5))
 
     for j, ep in enumerate(epochs):
         offsets = x - total_width / 2.0 + bar_w * (j + 0.5)
@@ -697,8 +710,19 @@ def plot_grouped_bar(
             yerr=np.where(np.isfinite(vals), np.nan_to_num(errs), 0.0),
             error_kw=dict(ecolor="black", elinewidth=1.3, capsize=2.5, capthick=1.3),
         )
+        if annotate:
+            for xo, v, e in zip(offsets, vals, errs):
+                if not np.isfinite(v):
+                    continue
+                e = e if np.isfinite(e) else 0.0
+                txt = f"{v:.2f}\n±{e:.2f}" if e > 0 else f"{v:.2f}"
+                ax.text(
+                    xo, v + e + 0.12, txt,
+                    ha="center", va="bottom", rotation=0,
+                    fontsize=8.5, color="0.15", linespacing=1.05,
+                )
 
-    ax.set_xlabel("SimCLR Pretraining Batch Size", fontsize=FONT_LABEL, labelpad=10)
+    ax.set_xlabel(x_label, fontsize=FONT_LABEL, labelpad=10)
     ax.set_ylabel("Accuracy (%)", fontsize=FONT_LABEL, labelpad=10)
     ax.set_xticks(x)
     ax.set_xticklabels([str(b) for b in batch_sizes])
@@ -709,7 +733,8 @@ def plot_grouped_bar(
     if finite.size > 0:
         err_max = np.nanmax(np.where(np.isfinite(std_matrix), std_matrix, 0.0))
         lo = ymin if ymin is not None else float(np.floor(finite.min()) - 1.0)
-        hi = ymax if ymax is not None else float(np.ceil(finite.max() + err_max) + 0.8)
+        head = 1.3 if annotate else 0.8     # 標註文字需要額外上方空間
+        hi = ymax if ymax is not None else float(np.ceil(finite.max() + err_max) + head)
         ax.set_ylim(lo, hi)
 
     ax.grid(axis="y", linestyle="--", alpha=0.4, linewidth=1.0)
@@ -720,14 +745,14 @@ def plot_grouped_bar(
     # matplotlib 預設直向填 → 重排 handles 成轉置順序，讓視覺上是「橫向」：
     #   10 20 50 / 100 200 500
     handles, labels = ax.get_legend_handles_labels()
-    ncol = 3
+    ncol = len(handles) if by_epoch else 3   # by_epoch: batch-size legend 排成一行
     nrow = int(np.ceil(len(handles) / ncol))
     order = [r * ncol + c for c in range(ncol) for r in range(nrow) if r * ncol + c < len(handles)]
     handles = [handles[i] for i in order]
     labels = [labels[i] for i in order]
     leg = ax.legend(
         handles, labels,
-        title="Pretraining Epoch",
+        title=legend_title,
         fontsize=FONT_LEGEND, title_fontsize=FONT_LEGEND,
         ncol=ncol, columnspacing=1.0, loc="upper left", framealpha=0.9, edgecolor="0.7",
     )
@@ -864,6 +889,14 @@ def main():
     )
 
     parser.add_argument(
+        "--bar_by_epoch",
+        action="store_true",
+        default=False,
+        help="Bar chart only: transpose so x-axis = pretraining epoch, "
+             "sub-bars by batch size (saved with a '_byepoch' suffix).",
+    )
+
+    parser.add_argument(
         "--ymin",
         type=float,
         default=90.0,
@@ -891,9 +924,10 @@ def main():
     #     lr_tag = "lr" + str(args.only_lr).replace(".", "p").replace("-", "m")
 
     kind_prefix = args.save_prefix.replace("heatmap", "bargroup") if args.bar else args.save_prefix
+    axis_tag = "_byepoch" if (args.bar and args.bar_by_epoch) else ""
     save_path = os.path.join(
         args.save_dir,
-        f"{kind_prefix}_{aug_tag}_portion{portion_tag}_simclrlr{simclr_lr_tag}.png",
+        f"{kind_prefix}_{aug_tag}_portion{portion_tag}_simclrlr{simclr_lr_tag}{axis_tag}.png",
     )
 
     records = scan_simclr_jsons(args.base_dir)
@@ -920,6 +954,7 @@ def main():
             annotate=not args.no_annotate,
             ymin=args.ymin,
             ymax=args.ymax,
+            by_epoch=args.bar_by_epoch,
         )
     else:
         plot_heatmap(

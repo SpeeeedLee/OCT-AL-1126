@@ -296,6 +296,7 @@ python3 thesis/chapter_5/plot_5_3_selection_dist.py --plot trend \
 DEVICE=cuda:3 ./thesis/chapter_5/run_5_3_3_extend_margin.sh # 已下
 DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_3_extend_coreset.sh # 已下
 DEVICE=cuda:0 ./thesis/chapter_5/run_5_3_3_extend_cluster_margin.sh # 已下
+DEVICE=cuda:2 ./thesis/chapter_5/run_5_3_3_extend_typiclust.sh # 已下
 ```
 - 產出 `ch5_5_3_3_extend/classification_hard/AL_simclr/labeled_ids/{method}_seed42_bs16.json`；
   其 `90.0` 的 `cumulative` 之**補集**即該方法的 Bottom-10%（≈203 張）。
@@ -361,6 +362,55 @@ for p in 15 30 50 70; do python3 thesis/chapter_5/finetune_full_model.py --porti
 - ⚠️ caveat：本 codebase 的 TypiClust 是 **warm-start、用當前 finetuned 模型的 backbone 特徵**，
   已偏離原版「frozen SSL 特徵 + 零標註自選首批」；做 hybrid 前需決定是否補一版忠實的 frozen-SSL TypiClust。
 - **狀態：留到之後做（先完成上面的 confusion matrix / 類別分布 / UMAP 量化分析）。**
+
+---
+
+## 5.x　Augmentation 的 10-fold 交叉驗證（robustness check）
+
+驗證 §4.2 的 aug 結論（w/o · HF · VF · HF+VF · HF+VF+HVF）不是單一 train/val/test 切分的 artifact：
+**10-fold CV**、one-shot（**無 AL**）、init = **ImageNet（與 §4.2 一致）**，在 ρ=5/50/100% 比五種 aug。
+**fold 1 = §4.2 既有資料（直接匯入、不重跑）**；本腳本跑 **folds 2..5**，之後可補 6..10。
+
+**CV 切法（全部在程式層面、不動 `ds/` 資料夾）**：把 `train/`(2032)+`val/`(509) 共 2541 張 pool 起來
+（8:1:1 → **10 個 chunk**）。chunk 定義刻意讓 **fold 1 = 原本的 split**：
+`chunk 0..7` = `train/` 依類別 stratify 切 8 份、`chunk 8/9` = 原本的 val/test（對齊 `utils/data.py`）。
+fold f（1-indexed）把 10-chunk 視窗循環右移 (f−1) 格：
+`train={c_s..c_{s+7}}, val=c_{s+8}, test=c_{s+9}`（s=f−1, mod 10）。
+→ fold 1 (s=0) = train/ 全部 + 原 val + 原 test ＝**原本 8:1:1 split**（已驗證：彙整數字與 §4.2 表完全一致）。
+labeled 子集在該 fold 的 train pool 內用 seed 抽樣（各 aug 同 seed→同子集，公平比較）。
+
+- **portion 5/50**：5 seeds(10,24,38,42,57)；**portion 100**：只 seed 42（全集、seed 無關），仍跑各 fold。
+- **lr 網格（§4.2 per-portion）**：ρ5=`7e-5 1e-4 3e-4 5e-4 7e-4`、ρ50=`5e-5 7e-5 1e-4 3e-4 5e-4`、
+  ρ100=`1e-5 5e-5 1e-4 5e-4`；每 (aug,fold,seed,lr) 跑 3 runs。
+- **平行**：同一 (portion,fold,aug,seed) 的「所有 LR × 3 runs」一次丟**同一張 GPU** 平行（ρ5/50=15、ρ100=12 個 process）。
+  `run_first_iter_cv.py` 用 `fcntl` 檔案鎖保護 JSON append → 多 process 寫同一 fold/seed 檔不會 race。
+- **彙整（每 fold 一張表）**：`aggregate_aug_cv.py` 對**每個 fold 各印一張表**（rows=portion、cols=五種 aug），
+  每格 = 該 fold 的 **mean±std over seeds**（per-seed best-lr）；**ρ100 單 seed → std 取 best-lr 的 runs**（§4.2 SPECIAL_RHO_100，ddof=1）。
+  最後另附一張「ALL folds pooled」總覽。fold 1 之表 = §4.2 原表（已驗證 means 完全一致）。
+
+```bash
+# 0) 先把 §4.2(ImageNet) 匯入成 fold 1（一次就好）
+python3 thesis/chapter_5/import_fold1_from_4_2.py
+
+# 1) 跑 folds 2..5（從 repo 根；可覆寫 DEVICE/FOLDS/PORTIONS/SEEDS/LRS/RUNS/AUGS）
+#    分卡只用 FOLDS/SEEDS（結果檔名=fold{F}_seed{S}）；勿用 PORTIONS/AUGS 分→撞同檔。
+DEVICE=cuda:2 FOLDS=2 ./thesis/chapter_5/run_5_x_aug_cv.sh &
+DEVICE=cuda:3 FOLDS=3 ./thesis/chapter_5/run_5_x_aug_cv.sh &
+DEVICE=cuda:4 FOLDS=4 ./thesis/chapter_5/run_5_x_aug_cv.sh &
+DEVICE=cuda:6 FOLDS=5 ./thesis/chapter_5/run_5_x_aug_cv.sh &
+# 之後補後 5 folds：FOLDS="6 7 8 9 10"
+
+# 2) 看表（主表 + 每 fold 細節）
+python3 thesis/chapter_5/aggregate_aug_cv.py
+python3 thesis/chapter_5/aggregate_aug_cv.py --detail
+```
+
+- 程式：[`classification/utils/data_cv.py`](../../classification/utils/data_cv.py)（10-fold 切分，fold 1=原本 split）、
+  [`classification/run_first_iter_cv.py`](../../classification/run_first_iter_cv.py)（單次訓練 entry，ImageNet init）、
+  [`import_fold1_from_4_2.py`](import_fold1_from_4_2.py)（匯入 fold 1）、
+  [`aggregate_aug_cv.py`](aggregate_aug_cv.py)（印表）。
+- 結果隔離樹：`classification/exp_results/chapter5_aug_cv/classification_hard/aug_cv_imagenet/fold{F}_seed{S}_bs16_ep20.json`。
+- 重跑安全：每 (aug,portion,lr) 滿 3 runs 會被 `check_existing_results` 擋（腳本 `|| true` 跳過）。
 
 ---
 
@@ -432,7 +482,7 @@ done # 已下
 ```
 
 
-## 
+## Foundation models to guide initial labeled pool
 
 ```bash
 PARALLEL=3 MODELS="resnet_imagenet:resnet18 resnet_imagenet:resnet50" PORTIONS="2.5 10 20" DEVICE=cuda:4 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
@@ -445,14 +495,71 @@ PARALLEL=3 MODELS="simclr:resnet18" PORTIONS="2.5 10 20" DEVICE=cuda:9 ./thesis/
 
 PARALLEL=3 MODELS="dinov2:base dinov2:large"                          PORTIONS="2.5 10 20" DEVICE=cuda:8 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
 
-PARALLEL=3 MODELS="clip:base clip:large"                              PORTIONS="2.5 10 20" DEVICE=cuda:3 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
+PARALLEL=3 MODELS="clip:base clip:large"                              PORTIONS="2.5 10 20" DEVICE=cuda:7 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
 
 PARALLEL=3 MODELS="resnet_imagenet:resnet152" PORTIONS="2.5 10 20" DEVICE=cuda:1 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
 
-PARALLEL=3 MODELS="radimagenet:resnet50 biomedclip:base"             PORTIONS="2.5 10 20" DEVICE=cuda:4 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
+PARALLEL=3 MODELS="radimagenet:resnet50 biomedclip:base"             PORTIONS="2.5 10 20" DEVICE=cuda:3 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
 
+PARALLEL=3 MODELS="simclr:resnet50" PORTIONS="2.5 10 20" DEVICE=cuda:9 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="simclr:resnet50" PORTIONS="2.5 10 20" DEVICE=cuda:9 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
+
+PARALLEL=3 MODELS="retfound:cfp" PORTIONS="2.5 10 20" DEVICE=cuda:4 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="resnet_imagenet:resnet34" PORTIONS="2.5 10 20" DEVICE=cuda:5 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="simclr:resnet152" PORTIONS="2.5 10 20" DEVICE=cuda:8 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+PARALLEL=3 MODELS="simclr:resnet101" PORTIONS="2.5 10 20" DEVICE=cuda:9 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下 (這是有點錯掉的，太早的epoch了)
+
+PARALLEL=3 MODELS="simclr:resnet50_best" PORTIONS="2.5 10 20" DEVICE=cuda:6 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
 
 # plot results
 python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py          # all 3 portions at once
 python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py --portions 10   # just one
+
+### 快速補LR
+python3 thesis/chapter_5/coldstart_fm/run_coldstart_fm.py \
+    --model resnet_imagenet:resnet152 --portion 20 \
+    --lr_grid 1e-5 3e-5 --parallel_runs 3 --device cuda:8 # 已下
+
+python3 thesis/chapter_5/coldstart_fm/run_coldstart_fm.py \
+    --model simclr:resnet152_best --portion 2.5 \
+    --lr_grid 1e-5 --parallel_runs 3 --device cuda:8 # 已下
+
+## Best val simclr pretraining ckpt
+
+PARALLEL=3 MODELS="simclr:resnet152_best" PORTIONS="2.5 10 20" DEVICE=cuda:7 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
+
+```
+
+## SimCLR Pretraining on larger resnet
+
+```bash
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet50 --epochs 500 -b 256 --lr 0.0002 --device cuda:9 --micro_bs 128 # 已下 
+# --grad_cache off
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet152 --epochs 500 -b 256 --lr 0.0002  --device cuda:1 # micro_bs 盡量大，才能避免來自BN的Numerical error (不太影響) # 已下
+
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet101 --epochs 500 -b 256 --lr 0.0002 --device cuda:3 --micro_bs 128 # 已下
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet34 --epochs 500 -b 256 --lr 0.0002 --device cuda:1 --grad_cache off # 已下
+
+
+###### 試試看是否有Overfitting? --> 有!
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet50 --epochs 500 -b 256 --lr 0.0002 --micro_bs 128 --device cuda:6 --val-open # 已下
+
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet152 --epochs 500 -b 256 --lr 0.0002 --micro_bs 128 --device cuda:2 --val-open
+# 已下
+```
+
+
+## 獲取AL ckpt 以利GradCam分析
+
+```bash
+python3 thesis/gradcam/dump_al_p30_ckpt.py --device cuda:4 # 已下
 ```

@@ -1,0 +1,189 @@
+{
+  "criteria": "P_typiclust < avg3(margin,coreset,cluster_margin); rank by (P_random - avg3) ascending; top-k per class",
+  "models": [
+    "random",
+    "margin",
+    "coreset",
+    "cluster_margin",
+    "typiclust"
+  ],
+  "topk": 5,
+  "classes": {
+    "SK": {
+      "class_name": "Seborrhoeic keratosis",
+      "class_idx": 4,
+      "n_test": 17,
+      "n_candidates": 6,
+      "selected": [
+        {
+          "idx": 409,
+          "file": "20220304_143900B.png",
+          "avg3": 0.9194454153378805,
+          "random": 0.05335414782166481,
+          "typiclust": 0.4438384175300598,
+          "random_minus_avg3": -0.8660912675162157,
+          "typiclust_minus_avg3": -0.4756069978078207,
+          "all_probs": {
+            "random": 0.05335414782166481,
+            "margin": 0.7991887331008911,
+            "coreset": 0.970737874507904,
+            "cluster_margin": 0.9884096384048462,
+            "typiclust": 0.4438384175300598
+          }
+        },
+        {
+          "idx": 388,
+          "file": "20210412_105908B.png",
+          "avg3": 0.7260681589444479,
+          "random": 0.07232148200273514,
+          "typiclust": 0.023941807448863983,
+          "random_minus_avg3": -0.6537466769417127,
+          "typiclust_minus_avg3": -0.7021263514955839,
+          "all_probs": {
+            "random": 0.07232148200273514,
+            "margin": 0.5781159996986389,
+            "coreset": 0.7549136877059937,
+            "cluster_margin": 0.8451747894287109,
+            "typiclust": 0.023941807448863983
+          }
+        },
+        {
+          "idx": 387,
+          "file": "20210412_105841B.png",
+          "avg3": 0.6186581949392954,
+          "random": 0.2160361111164093,
+          "typiclust": 0.0637759193778038,
+          "random_minus_avg3": -0.4026220838228861,
+          "typiclust_minus_avg3": -0.5548822755614916,
+          "all_probs": {
+            "random": 0.2160361111164093,
+            "margin": 0.7378572225570679,
+            "coreset": 0.3936708867549896,
+            "cluster_margin": 0.7244464755058289,
+            "typiclust": 0.0637759193778038
+          }
+        },
+        {
+          "idx": 401,
+          "file": "20220214_124935B.png",
+          "avg3": 0.8670596281687418,
+          "random": 0.7015899419784546,
+          "typiclust": 0.5183472037315369,
+          "random_minus_avg3": -0.16546968619028724,
+          "typiclust_minus_avg3": -0.34871242443720496,
+          "all_probs": {
+            "random": 0.7015899419784546,
+            "margin": 0.8615931868553162,
+            "coreset": 0.8680546879768372,
+            "cluster_margin": 0.8715310096740723,
+            "typiclust": 0.5183472037315369
+          }
+        },
+        {
+          "idx": 391,
+          "file": "20211213_130114B.png",
+          "avg3": 0.7605141798655192,
+          "random": 0.7496364712715149,
+          "typiclust": 0.11096980422735214,
+          "random_minus_avg3": -0.010877708594004276,
+          "typiclust_minus_avg3": -0.649544375638167,
+          "all_probs": {
+            "random": 0.7496364712715149,
+            "margin": 0.684435248374939,
+            "coreset": 0.809702455997467,
+            "cluster_margin": 0.7874048352241516,
+            "typiclust": 0.11096980422735214
+          }
+        }
+      ]
+    },
+    "SL": {
+      "class_name": "Solar lentigo",
+      "class_idx": 5,
+      "n_test": 34,
+      "n_candidates": 23,
+      "selected": [
+        {
+          "idx": 419,
+          "file": "20210118_093721B.png",
+          "avg3": 0.8226495981216431,
+          "random": 0.14217378199100494,
+          "typiclust": 0.3354119658470154,
+          "random_minus_avg3": -0.6804758161306381,
+          "typiclust_minus_avg3": -0.4872376322746277,
+          "all_probs": {
+            "random": 0.14217378199100494,
+            "margin": 0.7011278867721558,
+            "coreset": 0.8530370593070984,
+            "cluster_margin": 0.913783848285675,
+            "typiclust": 0.3354119658470154
+          }
+        },
+        {
+          "idx": 418,
+          "file": "20210118_093637B.png",
+          "avg3": 0.6204884052276611,
+          "random": 0.005760799627751112,
+          "typiclust": 0.07516695559024811,
+          "random_minus_avg3": -0.61472760559991,
+          "typiclust_minus_avg3": -0.545321449637413,
+          "all_probs": {
+            "random": 0.005760799627751112,
+            "margin": 0.7851457595825195,
+            "coreset": 0.16029125452041626,
+            "cluster_margin": 0.9160282015800476,
+            "typiclust": 0.07516695559024811
+          }
+        },
+        {
+          "idx": 414,
+          "file": "20210113_143147B.png",
+          "avg3": 0.749220053354899,
+          "random": 0.16169719398021698,
+          "typiclust": 0.5717213153839111,
+          "random_minus_avg3": -0.5875228593746821,
+          "typiclust_minus_avg3": -0.17749873797098792,
+          "all_probs": {
+            "random": 0.16169719398021698,
+            "margin": 0.6728038191795349,
+            "coreset": 0.7421607971191406,
+            "cluster_margin": 0.8326955437660217,
+            "typiclust": 0.5717213153839111
+          }
+        },
+        {
+          "idx": 429,
+          "file": "20210203_162342B.png",
+          "avg3": 0.59503240386645,
+          "random": 0.10700316727161407,
+          "typiclust": 0.01594006083905697,
+          "random_minus_avg3": -0.4880292365948359,
+          "typiclust_minus_avg3": -0.579092343027393,
+          "all_probs": {
+            "random": 0.10700316727161407,
+            "margin": 0.3440280854701996,
+            "coreset": 0.5844190716743469,
+            "cluster_margin": 0.8566500544548035,
+            "typiclust": 0.01594006083905697
+          }
+        },
+        {
+          "idx": 462,
+          "file": "20220214_095642B.png",
+          "avg3": 0.8943706750869751,
+          "random": 0.48417288064956665,
+          "typiclust": 0.8190721869468689,
+          "random_minus_avg3": -0.41019779443740845,
+          "typiclust_minus_avg3": -0.0752984881401062,
+          "all_probs": {
+            "random": 0.48417288064956665,
+            "margin": 0.7677721381187439,
+            "coreset": 0.9667224287986755,
+            "cluster_margin": 0.9486174583435059,
+            "typiclust": 0.8190721869468689
+          }
+        }
+      ]
+    }
+  }
+}

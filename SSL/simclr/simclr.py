@@ -72,7 +72,66 @@ class SimCLR(object):
         logits = logits / self.args.temperature
         return logits, labels
 
-    def train(self, train_loader):
+    # ------------------------------------------------------------------ #
+    # Held-out contrastive validation (overfitting monitor). Does NOT touch
+    # the model/optimizer; RNG is snapshotted+restored by the caller so the
+    # training stream is byte-identical with or without validation.
+    # ------------------------------------------------------------------ #
+    def _info_nce_dyn(self, features):
+        """Same InfoNCE as info_nce_loss but batch size inferred from features
+        (val-half = 254 imgs ≠ args.batch_size)."""
+        bs = features.shape[0] // self.args.n_views
+        labels = torch.cat([torch.arange(bs) for _ in range(self.args.n_views)], dim=0)
+        labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float().to(self.args.device)
+        features = F.normalize(features, dim=1)
+        sim = torch.matmul(features, features.T)
+        mask = torch.eye(labels.shape[0], dtype=torch.bool).to(self.args.device)
+        labels = labels[~mask].view(labels.shape[0], -1)
+        sim = sim[~mask].view(sim.shape[0], -1)
+        positives = sim[labels.bool()].view(labels.shape[0], -1)
+        negatives = sim[~labels.bool()].view(sim.shape[0], -1)
+        logits = torch.cat([positives, negatives], dim=1) / self.args.temperature
+        labels = torch.zeros(logits.shape[0], dtype=torch.long).to(self.args.device)
+        return logits, labels
+
+    @torch.no_grad()
+    def evaluate_contrastive(self, val_loader):
+        """Mean InfoNCE loss / top1 / top5 over the val set (eval mode). Returns dict."""
+        was_training = self.model.training
+        self.model.eval()
+        tot_loss = tot1 = tot5 = 0.0
+        n = 0
+        for images, _ in val_loader:
+            images = torch.cat(images, dim=0).to(self.args.device)
+            features = self.model(images)
+            logits, labels = self._info_nce_dyn(features)
+            loss = self.criterion(logits, labels)
+            t1, t5 = accuracy(logits, labels, topk=(1, 5))
+            tot_loss += loss.item(); tot1 += t1[0].item(); tot5 += t5[0].item(); n += 1
+        if was_training:
+            self.model.train()
+        return {"val_loss": tot_loss / n, "val_top1": tot1 / n, "val_top5": tot5 / n}
+
+    def _run_validation(self, val_loader, epoch):
+        """Validate every 10 epochs (and the final epoch). Deterministic val views
+        (seed VAL_SEED) for a clean curve; RNG snapshot+restore → training unaffected."""
+        import random
+        import numpy as np
+        if val_loader is None or not (epoch % 10 == 0 or epoch == self.args.epochs - 1):
+            return None
+        VAL_SEED = 12345
+        rng = (torch.get_rng_state(), np.random.get_state(), random.getstate(),
+               torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None)
+        torch.manual_seed(VAL_SEED); np.random.seed(VAL_SEED); random.seed(VAL_SEED)
+        try:
+            m = self.evaluate_contrastive(val_loader)
+        finally:
+            torch.set_rng_state(rng[0]); np.random.set_state(rng[1]); random.setstate(rng[2])
+            if rng[3] is not None:
+                torch.cuda.set_rng_state_all(rng[3])
+        return m
+
+    def train(self, train_loader, val_loader=None):
         scaler = GradScaler(enabled=self.args.fp16_precision)
         save_config_file(self.writer.log_dir, self.args)
 
@@ -83,8 +142,11 @@ class SimCLR(object):
         os.makedirs(json_dir,  exist_ok=True)
 
         # 共用檔名 (不含副檔名)
-        base_name = f"{self.args.arch}_simclr_lr{self.args.lr}_bs{self.args.batch_size}_ep{self.args.epochs}"
+        # _wval suffix when validation is on → never overwrite the original (no-val) ckpts
+        vtag = "_wval" if val_loader is not None else ""
+        base_name = f"{self.args.arch}_simclr_lr{self.args.lr}_bs{self.args.batch_size}_ep{self.args.epochs}{vtag}"
         model_path = os.path.join(model_dir, f"{base_name}.pkl")
+        best_path  = os.path.join(model_dir, f"{base_name}_best.pkl")   # lowest val-loss ckpt
         json_path  = os.path.join(json_dir,  f"{base_name}.json")
 
         # JSON 結構初始化
@@ -95,6 +157,7 @@ class SimCLR(object):
             "epochs":     self.args.epochs,
             "history":    []   # 每個 epoch append 一筆
         }
+        best_val, best_epoch = float("inf"), -1
 
         n_iter = 0
         logging.info(f"Start SimCLR training for {self.args.epochs} epochs.")
@@ -146,13 +209,21 @@ class SimCLR(object):
             print("-" * 50)
 
             # JSON 動態更新 ← 每個 epoch 都寫入一次
-            training_history["history"].append({
-                "epoch":      epoch_counter,
-                "loss":       avg_loss,
-                "top1":       avg_top1,
-                "top5":       avg_top5,
-                "lr":         current_lr,
-            })
+            rec = {"epoch": epoch_counter, "loss": avg_loss, "top1": avg_top1,
+                   "top5": avg_top5, "lr": current_lr}
+            vm = self._run_validation(val_loader, epoch_counter)   # every 10 ep (+ last)
+            if vm:
+                rec.update(vm)
+                self.writer.add_scalar('val/epoch_loss',     vm["val_loss"], global_step=epoch_counter)
+                self.writer.add_scalar('val/epoch_acc/top1', vm["val_top1"], global_step=epoch_counter)
+                self.writer.add_scalar('val/epoch_acc/top5', vm["val_top5"], global_step=epoch_counter)
+                print(f"  [val] Loss: {vm['val_loss']:.4f}  Top1: {vm['val_top1']:.2f}%  Top5: {vm['val_top5']:.2f}%")
+                if vm["val_loss"] < best_val:        # save lowest-val-loss ckpt
+                    best_val, best_epoch = vm["val_loss"], epoch_counter
+                    training_history["best_val_loss"], training_history["best_val_epoch"] = best_val, best_epoch
+                    torch.save(self.model.state_dict(), best_path)
+                    print(f"  [val] *** new best val_loss → saved {os.path.basename(best_path)} (ep{best_epoch})")
+            training_history["history"].append(rec)
             with open(json_path, "w") as f:
                 json.dump(training_history, f, indent=4)
 
@@ -163,7 +234,128 @@ class SimCLR(object):
         torch.save(self.model.state_dict(), model_path)
         logging.info("Training has finished.")
 
-        
+    # ------------------------------------------------------------------ #
+    # GradCache variant — ONLY for arch larger than resnet18 (see run.py).
+    # Reproduces the EXACT full-batch (bs) InfoNCE loss/gradient while only
+    # holding one micro-batch's activation graph at a time → lets resnet50/101/152
+    # keep the same bs/ep/lr (and fp32, matching resnet18) under limited VRAM.
+    # Ref: Gao et al. 2021, "Scaling Deep Contrastive Learning Batch Size under
+    # Memory Limited Setup". 3 passes per step:
+    #   (1) no-grad micro-batch forwards → cache embeddings
+    #   (2) full-batch InfoNCE on cached embeddings → grad w.r.t. each embedding
+    #   (3) re-forward each micro-batch WITH grad, backprop the cached grad →
+    #       accumulate model grads; then optimizer.step()
+    # NOTE: fp32 (no autocast/scaler) to match resnet18. Caveat: BatchNorm is
+    # computed per micro-batch (not over the full bs), the one unavoidable
+    # deviation from a single full-batch forward — negatives are still the full bs.
+    # ------------------------------------------------------------------ #
+    def train_gradcache(self, train_loader, micro_bs, val_loader=None):
+        save_config_file(self.writer.log_dir, self.args)
+
+        model_dir = "./SSL/simclr/ckpt"
+        json_dir  = "./SSL/simclr/json"
+        os.makedirs(model_dir, exist_ok=True)
+        os.makedirs(json_dir,  exist_ok=True)
+
+        # _wval suffix when validation is on → never overwrite the original (no-val) ckpts
+        vtag = "_wval" if val_loader is not None else ""
+        base_name = f"{self.args.arch}_simclr_lr{self.args.lr}_bs{self.args.batch_size}_ep{self.args.epochs}{vtag}"
+        model_path = os.path.join(model_dir, f"{base_name}.pkl")
+        best_path  = os.path.join(model_dir, f"{base_name}_best.pkl")   # lowest val-loss ckpt
+        json_path  = os.path.join(json_dir,  f"{base_name}.json")
+
+        training_history = {
+            "arch":       self.args.arch,
+            "lr":         self.args.lr,
+            "batch_size": self.args.batch_size,
+            "epochs":     self.args.epochs,
+            "grad_cache": True,
+            "micro_bs":   micro_bs,
+            "history":    []
+        }
+        best_val, best_epoch = float("inf"), -1
+
+        n_iter = 0
+        logging.info(f"Start SimCLR (GradCache, micro_bs={micro_bs}) for {self.args.epochs} epochs.")
+        print(f"[GradCache] arch={self.args.arch} bs={self.args.batch_size} "
+              f"micro_bs={micro_bs} (fp32) — true full-batch InfoNCE, low VRAM")
+
+        for epoch_counter in range(self.args.epochs):
+            epoch_loss = epoch_top1 = epoch_top5 = 0.0
+            batch_count = 0
+
+            for images, _ in tqdm(train_loader):
+                images = torch.cat(images, dim=0).to(self.args.device)   # [2*bs, C, H, W]
+                N = images.size(0)
+                self.optimizer.zero_grad()
+
+                # (1) cache embeddings, no grad
+                with torch.no_grad():
+                    reps = torch.cat([self.model(images[s:s + micro_bs])
+                                      for s in range(0, N, micro_bs)], dim=0)
+                reps = reps.detach().requires_grad_(True)
+
+                # (2) full-batch InfoNCE → grad w.r.t. cached embeddings (model untouched)
+                logits, labels = self.info_nce_loss(reps)
+                loss = self.criterion(logits, labels)
+                loss.backward()
+                rep_grads = reps.grad.detach()
+
+                # (3) re-forward each micro-batch WITH grad, backprop cached grads → accumulate
+                for s in range(0, N, micro_bs):
+                    f = self.model(images[s:s + micro_bs])
+                    torch.autograd.backward(f, grad_tensors=rep_grads[s:s + f.size(0)])
+                self.optimizer.step()
+
+                top1, top5 = accuracy(logits, labels, topk=(1, 5))
+                epoch_loss += loss.item()
+                epoch_top1 += top1[0].item()
+                epoch_top5 += top5[0].item()
+                batch_count += 1
+                n_iter += 1
+
+            avg_loss = epoch_loss / batch_count
+            avg_top1 = epoch_top1 / batch_count
+            avg_top5 = epoch_top5 / batch_count
+            current_lr = self.scheduler.get_lr()[0]
+
+            self.writer.add_scalar('epoch_loss',     avg_loss,   global_step=epoch_counter)
+            self.writer.add_scalar('epoch_acc/top1', avg_top1,   global_step=epoch_counter)
+            self.writer.add_scalar('epoch_acc/top5', avg_top5,   global_step=epoch_counter)
+            self.writer.add_scalar('learning_rate',  current_lr, global_step=epoch_counter)
+
+            print(f"Epoch: {epoch_counter}")
+            print(f"  Loss: {avg_loss:.4f}")
+            print(f"  Top1 Accuracy: {avg_top1:.2f}%")
+            print(f"  Top5 Accuracy: {avg_top5:.2f}%")
+            print(f"  Learning Rate: {current_lr:.6f}")
+            print("-" * 50)
+
+            rec = {"epoch": epoch_counter, "loss": avg_loss, "top1": avg_top1,
+                   "top5": avg_top5, "lr": current_lr}
+            vm = self._run_validation(val_loader, epoch_counter)
+            if vm:
+                rec.update(vm)
+                self.writer.add_scalar('val/epoch_loss',     vm["val_loss"], global_step=epoch_counter)
+                self.writer.add_scalar('val/epoch_acc/top1', vm["val_top1"], global_step=epoch_counter)
+                self.writer.add_scalar('val/epoch_acc/top5', vm["val_top5"], global_step=epoch_counter)
+                print(f"  [val] Loss: {vm['val_loss']:.4f}  Top1: {vm['val_top1']:.2f}%  Top5: {vm['val_top5']:.2f}%")
+                if vm["val_loss"] < best_val:        # save lowest-val-loss ckpt
+                    best_val, best_epoch = vm["val_loss"], epoch_counter
+                    training_history["best_val_loss"], training_history["best_val_epoch"] = best_val, best_epoch
+                    torch.save(self.model.state_dict(), best_path)
+                    print(f"  [val] *** new best val_loss → saved {os.path.basename(best_path)} (ep{best_epoch})")
+            training_history["history"].append(rec)
+            with open(json_path, "w") as f:
+                json.dump(training_history, f, indent=4)
+
+            self.scheduler.step()
+            logging.debug(f"Epoch: {epoch_counter}\tLoss: {avg_loss}\tTop1 accuracy: {avg_top1}")
+
+        torch.save(self.model.state_dict(), model_path)
+        logging.info("Training (GradCache) has finished.")
+
+
     # def train(self, train_loader):
 
     #     scaler = GradScaler(enabled=self.args.fp16_precision)

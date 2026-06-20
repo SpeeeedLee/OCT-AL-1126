@@ -485,3 +485,90 @@ DEVICE=cuda:9 ./thesis/chapter_4/run_4_3_learning_curve_simclr_s57.sh
 
 DEVICE=cuda:0 ./thesis/chapter_4/run_4_3_learning_curve_p100_runs.sh
 ```
+
+
+## Extend SimCLR 預訓練到2000週期
+```bash
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 \
+    --epochs 1000 -b 256 --lr 0.0002 --device cuda:1 --val-open 
+    # 已下
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 \
+    --epochs 2000 -b 256 --lr 0.0002 --device cuda:0 --val-open  
+    # 已下
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 \
+    --epochs 1000 -b 128 --lr 0.0002 --device cuda:3 --val-open
+    # 已下 (這個其實還好，不一定要畫出來)
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 \
+    --epochs 2000 -b 16 --lr 0.0002 --device cuda:7 --val-open
+    # 已下
+
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 \
+    --epochs 1000 -b 16 --lr 0.0002 --device cuda:0 --val-open
+```
+
+下游微調
+```bash
+for lr in 1e-4 5e-4 7e-4; do
+  for i in 1 2 3; do
+    python3 classification/run_first_iter_simclr.py \
+      --task_type hard \
+      --portion 100 \
+      --pretrained_weights simclr \
+      --simclr_ep 1000_wval \
+      --seed 42 \
+      --lr $lr \
+      --device cuda:1 &
+  done
+  wait   # 等這個 lr 的 3 個 run 都跑完再換下一個 lr
+done
+# 已下
+
+for lr in 1e-4 5e-4 7e-4; do
+  for i in 1 2 3; do
+    python3 classification/run_first_iter_simclr.py \
+      --task_type hard \
+      --portion 100 \
+      --simclr_bs 256 \
+      --pretrained_weights simclr \
+      --simclr_ep 2000_wval \
+      --seed 42 \
+      --lr $lr \
+      --device cuda:7 &
+  done
+  wait   # 等這個 lr 的 3 個 run 都跑完再換下一個 lr
+done
+# 已下
+
+for lr in 1e-4 5e-4 7e-4; do
+  for i in 1 2 3; do
+    python3 classification/run_first_iter_simclr.py \
+      --task_type hard \
+      --portion 100 \
+      --pretrained_weights simclr \
+      --simclr_bs 16 \
+      --simclr_ep 2000_wval \
+      --seed 42 \
+      --lr $lr \
+      --device cuda:1 &
+  done
+  wait
+done
+# 已下
+```
+
+
+## 5-folde Data Augmentation Running
+
+```bash
+AUGS="hf 4x" DEVICE=cuda:4 FOLDS=2 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下 
+AUGS="hf 4x" DEVICE=cuda:6 FOLDS=3 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下 
+AUGS="hf 4x" DEVICE=cuda:5 FOLDS=4 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下 
+AUGS="hf 4x" DEVICE=cuda:3 FOLDS=5 ./thesis/chapter_5/run_5_x_aug_cv.sh 
+# 已下
+
+python3 thesis/chapter_5/aggregate_aug_cv.py 
+
+```

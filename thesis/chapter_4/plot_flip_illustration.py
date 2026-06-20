@@ -42,9 +42,9 @@ def main():
     HVF = img.transpose(Image.FLIP_LEFT_RIGHT).transpose(Image.FLIP_TOP_BOTTOM)
     panels = [
         (img, "(a) Original image"),
-        (HF,  "(b) Horizontal Flip (HF)"),
-        (VF,  "(c) Vertical Flip (VF)"),
-        (HVF, "(d) Horizontal & Vertical Flip (HVF)"),
+        (HF,  "(b) Horizontal flip (HF)"),
+        (VF,  "(c) Vertical flip (VF)"),
+        (HVF, "(d) Horizontal & Vertical flip (HVF)"),
     ]
 
     W, H = img.size

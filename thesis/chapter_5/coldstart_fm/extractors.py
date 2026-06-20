@@ -91,6 +91,7 @@ class TorchVisionResNetExtractor(FoundationExtractor):
     # model_id suffix -> (torchvision ctor name, weights enum name, dim)
     _SPECS = {
         "resnet18": ("resnet18", "ResNet18_Weights", 512),
+        "resnet34": ("resnet34", "ResNet34_Weights", 512),
         "resnet50": ("resnet50", "ResNet50_Weights", 2048),
         "resnet101": ("resnet101", "ResNet101_Weights", 2048),
         "resnet152": ("resnet152", "ResNet152_Weights", 2048),
@@ -218,22 +219,34 @@ class RadImageNetExtractor(FoundationExtractor):
 # --------------------------------------------------------------------------- #
 class SimCLRExtractor(FoundationExtractor):
     family = "simclr"
-    _SPECS = {"resnet18": 512}
-    _CKPT = "SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl"
+    _SPECS = {"resnet18": 512, "resnet50": 2048, "resnet101": 2048, "resnet152": 2048}
+    # our θ² SimCLR ckpts share this name pattern (best cfg lr2e-4/bs256/ep500)
+    _CKPT_TMPL = "SSL/simclr/ckpt/{arch}_simclr_lr0.0002_bs256_ep500.pkl"
 
     def __init__(self, model_id, device, ckpt=None, **kw):
         super().__init__(model_id, device)
         import os
         from classification.model.simclr.resnet_simclr import ResNetSimCLR
-        arch = model_id.split(":")[1]                       # resnet18
+        size = model_id.split(":")[1]                       # resnet50 | resnet152_best | ...
+        is_best = size.endswith("_best")                    # use the lowest-val-loss ckpt
+        arch = size[:-5] if is_best else size               # strip "_best"
+        dim = self._SPECS[arch]
         model = ResNetSimCLR(arch, 32)
-        path = ckpt or os.path.join(_REPO_ROOT(), self._CKPT)
+        if ckpt:
+            path = ckpt
+        else:
+            fn = f"{arch}_simclr_lr0.0002_bs256_ep500" + ("_wval_best" if is_best else "") + ".pkl"
+            path = os.path.join(_REPO_ROOT(), "SSL", "simclr", "ckpt", fn)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f"SimCLR ckpt not found: {path}. Pretrain it first "
+                f"(SSL/simclr/run.py -a {arch} ...) or pass ckpt=<path>.")
         sd = torch.load(path, map_location="cpu", weights_only=True)
         missing, unexpected = model.load_state_dict(sd, strict=False)
-        print(f"  [SimCLR] loaded {path}  missing={len(missing)} unexpected={len(unexpected)}")
+        print(f"  [SimCLR:{size}] loaded {path}  missing={len(missing)} unexpected={len(unexpected)}")
         # backbone penultimate: everything up to avgpool (drop the MLP projection head)
         self.model = nn.Sequential(*list(model.backbone.children())[:-1]).eval().to(device)
-        self.embed_dim = 512
+        self.embed_dim = dim
         # codebase convention (get_data val transform): full-res, [0.5] normalize, no resize
         self.transform = transforms.Compose([
             transforms.ToTensor(),
@@ -400,11 +413,13 @@ def _hf_processor_transform(processor):
 # Registry
 # --------------------------------------------------------------------------- #
 _FAMILY_OF = {
-    "resnet_imagenet": (TorchVisionResNetExtractor, ["resnet18", "resnet50", "resnet101", "resnet152"]),
+    "resnet_imagenet": (TorchVisionResNetExtractor,
+                        ["resnet18", "resnet34", "resnet50", "resnet101", "resnet152"]),
     "dinov2": (DINOv2Extractor, ["small", "base", "large"]),
     "clip": (CLIPExtractor, ["base", "large"]),
     "radimagenet": (RadImageNetExtractor, ["resnet50"]),
-    "simclr": (SimCLRExtractor, ["resnet18"]),          # OUR own θ² SimCLR backbone
+    "simclr": (SimCLRExtractor, ["resnet18", "resnet50", "resnet101", "resnet152",
+                                 "resnet50_best", "resnet152_best"]),  # +_best = lowest-val ckpt
     "biomedclip": (BiomedCLIPExtractor, ["base"]),
     "retfound": (RETFoundExtractor, ["oct", "cfp", "meh", "shanghai"]),   # GATED weights (HF token)
     "medimageinsight": (MedImageInsightExtractor, ["base"]),  # local feature_extract/ package
