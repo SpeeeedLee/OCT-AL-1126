@@ -515,6 +515,12 @@ PARALLEL=3 MODELS="simclr:resnet101" PORTIONS="2.5 10 20" DEVICE=cuda:9 ./thesis
 
 PARALLEL=3 MODELS="simclr:resnet50_best" PORTIONS="2.5 10 20" DEVICE=cuda:6 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
 
+
+## 最新補的，theta_simclr^1
+PARALLEL=3 MODELS="simclr:resnet18_random" PORTIONS="2.5 10 20" \
+    DEVICE=cuda:0 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
+
+
 # plot results
 python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py          # all 3 portions at once
 python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py --portions 10   # just one
@@ -533,6 +539,13 @@ python3 thesis/chapter_5/coldstart_fm/run_coldstart_fm.py \
 PARALLEL=3 MODELS="simclr:resnet152_best" PORTIONS="2.5 10 20" DEVICE=cuda:7 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh # 已下
 
 ```
+
+Plot
+
+```bash
+python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py
+```
+
 
 ## SimCLR Pretraining on larger resnet
 
@@ -562,4 +575,13 @@ python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet1
 
 ```bash
 python3 thesis/gradcam/dump_al_p30_ckpt.py --device cuda:4 # 已下
+```
+
+
+## 做在semantic segmentation, DICE
+
+
+Plot All Figures
+```bash
+python3 thesis/chapter_5/segmentation/report_table.py
 ```

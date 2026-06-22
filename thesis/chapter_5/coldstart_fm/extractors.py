@@ -219,7 +219,8 @@ class RadImageNetExtractor(FoundationExtractor):
 # --------------------------------------------------------------------------- #
 class SimCLRExtractor(FoundationExtractor):
     family = "simclr"
-    _SPECS = {"resnet18": 512, "resnet50": 2048, "resnet101": 2048, "resnet152": 2048}
+    _SPECS = {"resnet18": 512, "resnet18_random": 512,
+              "resnet50": 2048, "resnet101": 2048, "resnet152": 2048}
     # our θ² SimCLR ckpts share this name pattern (best cfg lr2e-4/bs256/ep500)
     _CKPT_TMPL = "SSL/simclr/ckpt/{arch}_simclr_lr0.0002_bs256_ep500.pkl"
 

@@ -1,0 +1,16 @@
+[pool] 14 jobs over 2 devices: cuda:4 cuda:5
+[dispatch 14:07:42] dev=cuda:4 job=0/14 -> thesis/chapter_5/segmentation/logs/job_000.log
+[dispatch 14:07:42] dev=cuda:5 job=1/14 -> thesis/chapter_5/segmentation/logs/job_001.log
+[dispatch 14:12:42] dev=cuda:4 job=2/14 -> thesis/chapter_5/segmentation/logs/job_002.log
+[dispatch 14:12:52] dev=cuda:5 job=3/14 -> thesis/chapter_5/segmentation/logs/job_003.log
+[dispatch 14:17:43] dev=cuda:4 job=4/14 -> thesis/chapter_5/segmentation/logs/job_004.log
+[dispatch 14:17:58] dev=cuda:5 job=5/14 -> thesis/chapter_5/segmentation/logs/job_005.log
+[dispatch 14:22:38] dev=cuda:4 job=6/14 -> thesis/chapter_5/segmentation/logs/job_006.log
+[dispatch 14:23:03] dev=cuda:5 job=7/14 -> thesis/chapter_5/segmentation/logs/job_007.log
+[dispatch 14:27:33] dev=cuda:4 job=8/14 -> thesis/chapter_5/segmentation/logs/job_008.log
+[dispatch 14:27:58] dev=cuda:5 job=9/14 -> thesis/chapter_5/segmentation/logs/job_009.log
+[dispatch 14:32:28] dev=cuda:4 job=10/14 -> thesis/chapter_5/segmentation/logs/job_010.log
+[dispatch 14:32:53] dev=cuda:5 job=11/14 -> thesis/chapter_5/segmentation/logs/job_011.log
+[dispatch 14:37:33] dev=cuda:4 job=12/14 -> thesis/chapter_5/segmentation/logs/job_012.log
+[dispatch 14:37:58] dev=cuda:5 job=13/14 -> thesis/chapter_5/segmentation/logs/job_013.log
+[pool] ALL 14 JOBS DONE 14:43:02

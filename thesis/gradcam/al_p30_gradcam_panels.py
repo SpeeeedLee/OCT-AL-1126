@@ -81,12 +81,13 @@ def all_probs(models, ds, sample_idxs, device):
     return out
 
 
-def select_top5(probs):
-    """對單一類別的影像集套 criteria，回傳排序後的候選 list（含分數）。"""
+def select_top5(probs, relax=False):
+    """對單一類別的影像集套 criteria，回傳排序後的候選 list（含分數）。
+       relax=True：跳過 typiclust<avg3 過濾，改用全部 test 影像（候選太少時用）。"""
     scored = []
     for gi, pr in probs.items():
         avg3 = float(np.mean([pr[m] for m in THREE]))
-        if pr["typiclust"] >= avg3:        # 不滿足 TypiClust < avg3
+        if not relax and pr["typiclust"] >= avg3:   # 不滿足 TypiClust < avg3
             continue
         scored.append({
             "idx": gi, "avg3": avg3,
@@ -150,7 +151,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="cuda:5")
     ap.add_argument("--method", default="gradcam++", choices=["gradcam", "gradcam++"])
-    ap.add_argument("--topk", type=int, default=5)
+    ap.add_argument("--topk", type=int, default=20)
+    ap.add_argument("--per_fig", type=int, default=5,
+                    help="每張圖幾列影像（top-k 會切成 ceil(k/per_fig) 張）")
+    ap.add_argument("--relax_classes", nargs="*", default=[],
+                    help="這些類別(如 SK)跳過 typiclust<avg3 過濾、用全部 test 影像")
     args = ap.parse_args()
     device = args.device if torch.cuda.is_available() else "cpu"
 
@@ -174,8 +179,10 @@ def main():
         idxs = [gi for gi in test_idx if ds.samples[gi][1] == cidx]
         print(f"\n=== {tag} ({cname}, label={cidx}) : {len(idxs)} test imgs ===")
         probs = all_probs(models, ds, idxs, device)
-        scored = select_top5(probs)
-        print(f"  候選(滿足 typiclust<avg3) = {len(scored)} / {len(idxs)}")
+        relax = tag in args.relax_classes
+        scored = select_top5(probs, relax=relax)
+        print(f"  候選({'放寬:全部 test' if relax else '滿足 typiclust<avg3'}) "
+              f"= {len(scored)} / {len(idxs)}")
         top = scored[:args.topk]
         for rec in top:
             print(f"   idx={rec['idx']:4d} random={rec['random']:.3f} "
@@ -191,10 +198,15 @@ def main():
                               "random_minus_avg3", "typiclust_minus_avg3")},
                           "all_probs": r["probs"]} for r in top],
         }
-        if top:
-            draw_panel(top, models, ds, cidx, device,
-                       title=f"{tag} ({cname}) — Grad-CAM++ on true class, ρ=30% AL models",
-                       out_path=os.path.join(OUT_DIR, f"{tag}_top5_gradcam.png"),
+        # 切成每 per_fig 張一圖（top-20 → 4 張），排版與原本完全一致
+        nfig = (len(top) + args.per_fig - 1) // args.per_fig
+        for fi in range(nfig):
+            chunk = top[fi * args.per_fig:(fi + 1) * args.per_fig]
+            suffix = f"_p{fi + 1}" if nfig > 1 else ""
+            draw_panel(chunk, models, ds, cidx, device,
+                       title=f"{tag} ({cname}) — Grad-CAM++ on true class, ρ=30% AL models"
+                             + (f"  ({fi + 1}/{nfig})" if nfig > 1 else ""),
+                       out_path=os.path.join(OUT_DIR, f"{tag}_top{args.topk}_gradcam{suffix}.png"),
                        method=args.method)
 
     sj = os.path.join(OUT_DIR, "al_p30_selection.json")

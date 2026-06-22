@@ -557,6 +557,27 @@ for lr in 1e-4 5e-4 7e-4; do
   wait
 done
 # 已下
+
+for lr in 1e-4 5e-4 7e-4; do
+  for i in 1 2 3; do
+    python3 classification/run_first_iter_simclr.py \
+      --task_type hard \
+      --portion 100 \
+      --pretrained_weights simclr \
+      --simclr_bs 16 \
+      --simclr_ep 1000_wval \
+      --seed 42 \
+      --lr $lr \
+      --device cuda:1 &
+  done
+  wait
+done
+# 已下
+```
+
+Plot
+```bash
+python3 thesis/chapter_4/plot_simclr_bs256_line.py 
 ```
 
 
@@ -566,9 +587,18 @@ done
 AUGS="hf 4x" DEVICE=cuda:4 FOLDS=2 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下 
 AUGS="hf 4x" DEVICE=cuda:6 FOLDS=3 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下 
 AUGS="hf 4x" DEVICE=cuda:5 FOLDS=4 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下 
-AUGS="hf 4x" DEVICE=cuda:3 FOLDS=5 ./thesis/chapter_5/run_5_x_aug_cv.sh 
-# 已下
+AUGS="hf 4x" DEVICE=cuda:3 FOLDS=5 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下
+
+
+PORTIONS=100 AUGS="hf" FOLDS="2 3 4 5" DEVICE=cuda:7 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下
+PORTIONS=100 AUGS="4x" FOLDS="2 3 4 5" DEVICE=cuda:0 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下
+
+
+AUGS="hf 4x" PORTIONS=100 FOLDS=6  DEVICE=cuda:7 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下
+AUGS="hf 4x" PORTIONS=100 FOLDS=7  DEVICE=cuda:8 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下
+AUGS="hf 4x" PORTIONS=100 FOLDS=8  DEVICE=cuda:9 ./thesis/chapter_5/run_5_x_aug_cv.sh # 已下
+# AUGS="hf 4x" PORTIONS=100 FOLDS=9  DEVICE=cuda:6 ./thesis/chapter_5/run_5_x_aug_cv.sh
+# AUGS="hf 4x" PORTIONS=100 FOLDS=10 DEVICE=cuda:7 ./thesis/chapter_5/run_5_x_aug_cv.sh
 
 python3 thesis/chapter_5/aggregate_aug_cv.py 
-
 ```
