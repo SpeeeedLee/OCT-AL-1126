@@ -4,6 +4,8 @@ ds/
 dataset/
 
 **.pkl
+!SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl
+!SSL/simclr/ckpt/resnet18_random_simclr_lr0.0002_bs256_ep500.pkl
 **.zip
 
 tb_logs/
