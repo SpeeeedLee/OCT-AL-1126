@@ -48,6 +48,9 @@ def parse_arguments():
     p.add_argument('--init', type=str, default='random', choices=['random', 'simclr'],
                    help='encoder init (simclr requires --simclr_path)')
     p.add_argument('--simclr_path', type=str, default=None)
+    p.add_argument('--warmup', type=int, default=0,
+                   help='frozen-decoder warm-up epochs (encoder frozen first N epochs, '
+                        'then unfreeze; same lr, no differential LR). Total epochs unchanged.')
     p.add_argument('--max_runs', type=int, default=5)
     p.add_argument('--exp_path', type=str,
                    default='./thesis/chapter_5/segmentation/exp_results')

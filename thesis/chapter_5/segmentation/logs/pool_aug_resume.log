@@ -1,0 +1,7 @@
+[pool] 432 jobs over 2 devices: cuda:6 cuda:7
+[dispatch 13:20:01] dev=cuda:6 job=0/432 -> thesis/chapter_5/segmentation/logs/job_000.log
+[dispatch 13:20:01] dev=cuda:7 job=1/432 -> thesis/chapter_5/segmentation/logs/job_001.log
+[dispatch 13:22:21] dev=cuda:6 job=2/432 -> thesis/chapter_5/segmentation/logs/job_002.log
+[dispatch 13:22:21] dev=cuda:7 job=3/432 -> thesis/chapter_5/segmentation/logs/job_003.log
+[dispatch 13:24:41] dev=cuda:6 job=4/432 -> thesis/chapter_5/segmentation/logs/job_004.log
+[dispatch 13:24:41] dev=cuda:7 job=5/432 -> thesis/chapter_5/segmentation/logs/job_005.log

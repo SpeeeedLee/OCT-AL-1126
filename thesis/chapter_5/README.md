@@ -518,8 +518,7 @@ PARALLEL=3 MODELS="simclr:resnet50_best" PORTIONS="2.5 10 20" DEVICE=cuda:6 ./th
 
 ## 最新補的，theta_simclr^1
 PARALLEL=3 MODELS="simclr:resnet18_random" PORTIONS="2.5 10 20" \
-    DEVICE=cuda:0 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
-
+    DEVICE=cuda:9 ./thesis/chapter_5/coldstart_fm/run_coldstart_fm.sh
 
 # plot results
 python3 thesis/chapter_5/coldstart_fm/plot_coldstart_fm.py          # all 3 portions at once
@@ -570,6 +569,87 @@ python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet1
 # 已下
 ```
 
+
+開始從initial warm start labeled pool做AL
+
+```bash
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy margin \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 42 --device cuda:9
+  # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy margin \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 10 --device cuda:3
+    # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy margin \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 24 --device cuda:4
+  # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy coreset \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 42 --device cuda:8
+  # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy coreset \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 10 --device cuda:2
+  # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy coreset \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 24 --device cuda:0
+ # 已下
+```
+
+Plot
+```bash
+python3 thesis/chapter_5/plot_5_x_warmstart_al.py
+```
 
 ## 獲取AL ckpt 以利GradCam分析
 

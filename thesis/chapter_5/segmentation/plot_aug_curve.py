@@ -50,13 +50,10 @@ def _collect(files):
 
 
 def curve(aug):
-    """{portion: (mean, std, n_seeds)} via per-seed best-lr. Prefer the NEW 5-seed
-    lr-swept aug_curve data; for the 4x line fall back to the old base_v2 run at
-    portions the new batch hasn't reached (same logic/data as plot_al_groups Random)."""
+    """{portion: (mean, std, n_seeds)} via per-seed best-lr. Reads ONLY the new
+    5-seed lr-swept aug_curve data (no old-data fallback → matches report_table)."""
     out = {}
-    new = _collect(f"{EXP}/aug{aug}/nuclei/cold_start_random/random_*_bs8.json")
-    old = _collect(OLD_FALLBACK[aug]) if aug in OLD_FALLBACK else {}
-    by_p = {p: (new[p] if p in new else old[p]) for p in set(new) | set(old)}
+    by_p = _collect(f"{EXP}/aug{aug}/nuclei/cold_start_random/random_*_bs8.json")
     for p, seeds in by_p.items():
         # one value per seed (its best-lr). If a single seed (ρ=100), use its reps for std.
         vals = [np.mean(v) for v in seeds.values()]

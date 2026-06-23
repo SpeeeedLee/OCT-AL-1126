@@ -188,7 +188,7 @@ def load_selected(strategy, portion, seed, mode="cumulative", exclude_init=False
 
 
 def plot_umap(emb, labels, classes, selected_idx, strategy, portion, seed, out_path,
-              highlight="star", method="umap"):
+              highlight="star", method="umap", title=None):
     """highlight:
        'star' = 顏色表類別；未選=小圓點(淡)、已選=大星號(實心+黑邊)。       [預設，較清楚]
        'box'  = 顏色+marker 表類別；已選=紅色空心方框（舊樣式）。"""
@@ -245,8 +245,8 @@ def plot_umap(emb, labels, classes, selected_idx, strategy, portion, seed, out_p
     axname = "t-SNE" if method == "tsne" else "UMAP"
     ax.set_xlabel(f"{axname}-1", fontsize=20, labelpad=8)
     ax.set_ylabel(f"{axname}-2", fontsize=20, labelpad=8)
-    ax.set_title(f"{STRATEGY_LABEL.get(strategy, strategy)}   (ρ={portion:g}%)",
-                 fontsize=22, pad=12)
+    _title = title if title is not None else f"{STRATEGY_LABEL.get(strategy, strategy)}   (ρ={portion:g}%)"
+    ax.set_title(_title, fontsize=22, pad=12)
     ax.set_xticks([]); ax.set_yticks([])
     for s in ax.spines.values():
         s.set_linewidth(1.5)

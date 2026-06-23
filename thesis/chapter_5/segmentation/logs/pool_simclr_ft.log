@@ -1,0 +1,23 @@
+[pool] 24 jobs over 2 devices: cuda:6 cuda:7
+[dispatch 10:16:45] dev=cuda:6 job=0/24 -> thesis/chapter_5/segmentation/logs/job_000.log
+[dispatch 10:16:45] dev=cuda:7 job=1/24 -> thesis/chapter_5/segmentation/logs/job_001.log
+[dispatch 10:21:25] dev=cuda:6 job=2/24 -> thesis/chapter_5/segmentation/logs/job_002.log
+[dispatch 10:21:25] dev=cuda:7 job=3/24 -> thesis/chapter_5/segmentation/logs/job_003.log
+[dispatch 10:25:55] dev=cuda:7 job=4/24 -> thesis/chapter_5/segmentation/logs/job_004.log
+[dispatch 10:26:05] dev=cuda:6 job=5/24 -> thesis/chapter_5/segmentation/logs/job_005.log
+[dispatch 10:30:30] dev=cuda:7 job=6/24 -> thesis/chapter_5/segmentation/logs/job_006.log
+[dispatch 10:30:35] dev=cuda:6 job=7/24 -> thesis/chapter_5/segmentation/logs/job_007.log
+[dispatch 10:35:10] dev=cuda:7 job=8/24 -> thesis/chapter_5/segmentation/logs/job_008.log
+[dispatch 10:35:15] dev=cuda:6 job=9/24 -> thesis/chapter_5/segmentation/logs/job_009.log
+[dispatch 10:39:46] dev=cuda:6 job=10/24 -> thesis/chapter_5/segmentation/logs/job_010.log
+[dispatch 10:39:56] dev=cuda:7 job=11/24 -> thesis/chapter_5/segmentation/logs/job_011.log
+[dispatch 10:44:16] dev=cuda:6 job=12/24 -> thesis/chapter_5/segmentation/logs/job_012.log
+[dispatch 10:44:31] dev=cuda:7 job=13/24 -> thesis/chapter_5/segmentation/logs/job_013.log
+[dispatch 11:17:42] dev=cuda:6 job=14/24 -> thesis/chapter_5/segmentation/logs/job_014.log
+[dispatch 11:18:17] dev=cuda:7 job=15/24 -> thesis/chapter_5/segmentation/logs/job_015.log
+[dispatch 11:50:38] dev=cuda:7 job=16/24 -> thesis/chapter_5/segmentation/logs/job_016.log
+[dispatch 11:51:08] dev=cuda:6 job=17/24 -> thesis/chapter_5/segmentation/logs/job_017.log
+[dispatch 12:23:09] dev=cuda:6 job=18/24 -> thesis/chapter_5/segmentation/logs/job_018.log
+[dispatch 12:23:19] dev=cuda:7 job=19/24 -> thesis/chapter_5/segmentation/logs/job_019.log
+[dispatch 12:56:45] dev=cuda:6 job=20/24 -> thesis/chapter_5/segmentation/logs/job_020.log
+[dispatch 12:57:05] dev=cuda:7 job=21/24 -> thesis/chapter_5/segmentation/logs/job_021.log

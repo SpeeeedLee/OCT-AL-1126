@@ -121,6 +121,24 @@ def train_unet(label_idx, opt, device):
     optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=opt.step, gamma=0.1)
 
+    # --- frozen-decoder warm-up (for SimCLR encoder init) ---
+    # First `warmup` epochs: encoder FROZEN (decoder-only trains; lr decays normally).
+    # After warmup: encoder UNFROZEN, encoder+decoder share the SAME lr to the end
+    # (NO differential LR). Total epochs unchanged (= opt.epoch) for fairness.
+    warmup = int(getattr(opt, "warmup", 0))
+    enc_mods = [model.Conv1, model.Conv2, model.Conv3,
+                model.Conv4, model.Conv5, model.Conv6]
+
+    def _set_encoder_trainable(flag):
+        for m in enc_mods:
+            for p in m.parameters():
+                p.requires_grad = flag
+
+    if warmup > 0:
+        _set_encoder_trainable(False)
+        print(f"✓ Warm-up: encoder FROZEN for first {warmup} epochs (decoder-only), "
+              f"then unfreeze (same lr, no differential LR)")
+
     rec = {"train_loss": [], "val_loss": [], "train_dice": [], "val_dice": []}
     best_val_loss = float("inf")
     best_epoch = 0
@@ -128,6 +146,10 @@ def train_unet(label_idx, opt, device):
     best_state = copy.deepcopy(model.state_dict())
 
     for EPOCH in range(opt.epoch):
+        if warmup > 0 and EPOCH == warmup:
+            _set_encoder_trainable(True)
+            print(f"✓ Warm-up done (epoch {EPOCH}): encoder UNFROZEN — "
+                  f"encoder+decoder now train together at the same lr")
         start = time.time()
         model.train()
         tr_loss, tr_dice = [], []

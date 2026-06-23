@@ -46,9 +46,9 @@ GROUPS = {
         ("cluster_margin", "Cluster-Margin", "#FB6A4A", "*"),
     ],
 }
-# Random baseline drawn all the way to full data (2.5, 5, 10, 20, ..., 90, 100),
-# matching plot_margin_random.py. AL strategies themselves only span 2.5->60.
-RANDOM_PORTIONS = {2.5, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0}
+# Random baseline drawn over the AL range (2.5->60), like the classification
+# figure; the full-data (rho=100) point is shown as the Target horizontal line.
+RANDOM_PORTIONS = {2.5, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0}
 
 
 def _per_seed_best(by_p):
@@ -90,20 +90,21 @@ def _prefer(new, old):
 
 
 def al_curve(strat):
-    """Per-seed best-lr -> mean±std. Prefer the new *_sweep run, fall back to the
-    old single-seed main_aug4 run so the curve is complete while the 5-seed run fills."""
+    """Per-seed best-lr -> mean±std. Reads ONLY the new *_sweep 5-seed runs (no old
+    single-seed main_aug4 fallback → consistent with report_table)."""
     new = _collect(glob.glob(f"{EXP}/*_sweep/nuclei/AL_random/{strat}_seed*_bs8.json"), strat)
-    old = _collect(glob.glob(f"{EXP}/main_aug4/nuclei/AL_random/{strat}_seed*_bs8.json"), strat)
-    return _per_seed_best(_prefer(new, old))
+    return _per_seed_best(new)
 
 
 def random_curve():
-    """Random (passive) baseline: prefer new 5-seed aug_curve/aug4, fall back to base_v2."""
+    """Random (passive) baseline = new 5-seed aug_curve/aug4 ONLY (no base_v2 fallback).
+    Target (ceiling) line = w/o-Aug full-data result = aug1 @ rho=100%."""
     new = _collect(glob.glob(f"{EXP}/aug_curve/aug4/nuclei/cold_start_random/random_*_bs8.json"))
-    old = _collect(glob.glob(f"{EXP}/base_v2/nuclei/cold_start_random/random_*_bs8.json"))
-    full = _per_seed_best(_prefer(new, old))
-    target = full.get(100.0, (None,))[0]
+    full = _per_seed_best(new)
     rnd = {p: v for p, v in full.items() if p in RANDOM_PORTIONS}
+    aug1 = _per_seed_best(_collect(glob.glob(
+        f"{EXP}/aug_curve/aug1/nuclei/cold_start_random/random_*_bs8.json")))
+    target = aug1.get(100.0, (None,))[0]   # w/o-Aug @ 100%
     return rnd, target
 
 
@@ -133,12 +134,15 @@ def draw_group(gname, items, rnd, target):
                 linestyle="--", label="Random")
         ax.fill_between(ps, mean - std, mean + std, color="#404040", alpha=0.12)
         drew = True
+    if target is not None:   # ceiling = w/o-Aug full-data (rho=100%)
+        ax.axhline(y=target, color="black", linestyle=(0, (8, 4)), linewidth=2.2,
+                   alpha=0.85, label="Target (w/o Aug 100%)")
     if not drew:
         plt.close(fig); print(f"  [skip group] {gname}: nothing to draw"); return
     ax.set_xlabel(r"Labeled Training Data Ratio $\rho$ (%)", fontsize=FONT_LABEL, labelpad=10)
     ax.set_ylabel("Dice", fontsize=FONT_LABEL, labelpad=10)
-    ax.set_xticks([5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
-    ax.set_xlim(0, 103)   # left padding so ρ=2.5 isn't flush; Random runs to 100
+    ax.set_xticks([5, 10, 20, 30, 40, 50, 60])
+    ax.set_xlim(0, 62)    # left padding so ρ=2.5 isn't flush; AL range 2.5->60
     ax.legend(fontsize=18, framealpha=0.9, loc="lower right")
     style_ax(ax)
     fig.tight_layout()
