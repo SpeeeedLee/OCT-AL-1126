@@ -68,6 +68,7 @@ def main():
     ax.set_ylabel("Dice", fontsize=FONT_LABEL, labelpad=10)
     ax.set_xticks([5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
     ax.set_xlim(0, 103)
+    ax.set_ylim(top=0.75)
     ax.tick_params(axis="both", labelsize=FONT_TICK, width=1.5, length=6)
     ax.grid(True, linestyle="--", alpha=0.4, linewidth=1.0)
     for s in ax.spines.values():
