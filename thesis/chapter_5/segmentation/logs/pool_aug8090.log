@@ -1,3 +1,0 @@
-[pool] 36 jobs over 2 devices: cuda:6 cuda:7
-[dispatch 13:25:52] dev=cuda:6 job=0/36 -> thesis/chapter_5/segmentation/logs/job_000.log
-[dispatch 13:25:52] dev=cuda:7 job=1/36 -> thesis/chapter_5/segmentation/logs/job_001.log

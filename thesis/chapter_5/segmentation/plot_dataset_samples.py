@@ -13,8 +13,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(__file__)
-IMG_DIR = "ds/segmentation/image"
-CELL_DIR = "ds/segmentation/cell"
+IMG_DIR = "ds/segmentation_correct/image"
+CELL_DIR = "ds/segmentation_correct/cell"
 SEED = 42                      # reproducible pick
 plt.rcParams.update({"font.family": "sans-serif", "font.sans-serif": ["Arial", "DejaVu Sans"]})
 
@@ -30,7 +30,7 @@ def train_files(fold=0):
 
 
 def main():
-    files = train_files()
+    files = sorted(train_files())     # data_loader order isn't deterministic -> sort first
     random.Random(SEED).shuffle(files)
     picks = files[:3]
     print("picked train images:", picks)

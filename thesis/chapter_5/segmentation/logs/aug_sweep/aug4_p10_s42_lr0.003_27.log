@@ -1,0 +1,9 @@
+Current working directory: /storage/ssd3/ArthurLee/GIPO/oct-AL-1126
+train 490 valid 61 test 61
+Cold-start: 10.0% -> 49/490 imgs (seed 42)
+train 490 valid 61 test 61
+
+================================================================================
+TRAIN U-Net | labeled=49 imgs x aug4 = 196 items | val=61 test=61
+================================================================================
+E1/25:   0%|                                                                        | 0/25 [00:00<?]

@@ -1,0 +1,34 @@
+Current working directory: /storage/ssd3/ArthurLee/GIPO/oct-AL-1126
+train 736 valid 244 test 244
+Cold-start: 60.0% -> 442/736 imgs (seed 38)
+train 736 valid 244 test 244
+
+================================================================================
+TRAIN U-Net | labeled=442 imgs x aug4 = 884 items | val=244 test=244
+================================================================================
+Traceback (most recent call last):
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/run_first_iter.py", line 142, in <module>
+    main()
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/run_first_iter.py", line 103, in main
+    out = train_unet(label_idx, args, device)
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/utils/train.py", line 124, in train_unet
+    model = build_model(opt.input_nc, device, simclr_path=simclr_path)
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/utils/train.py", line 51, in build_model
+    return model.to(device)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1340, in to
+    return self._apply(convert)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 900, in _apply
+    module._apply(fn)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 900, in _apply
+    module._apply(fn)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 900, in _apply
+    module._apply(fn)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 927, in _apply
+    param_applied = fn(param)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1326, in convert
+    return t.to(
+RuntimeError: CUDA error: out of memory
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+

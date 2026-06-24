@@ -1,0 +1,7 @@
+Current working directory: /storage/ssd3/ArthurLee/GIPO/oct-AL-1126
+Traceback (most recent call last):
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/run_first_iter.py", line 142, in <module>
+    main()
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/run_first_iter.py", line 88, in main
+    raise RuntimeError(f"Already {len(existing)}/{args.max_runs} runs for "
+RuntimeError: Already 1/1 runs for portion=2.5 lr=0.001 in ./thesis/chapter_5/segmentation/exp_results/aug_curve/vf2/nuclei/cold_start_random/random_24_bs8.json

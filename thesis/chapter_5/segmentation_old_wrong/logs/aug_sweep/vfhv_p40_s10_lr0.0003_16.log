@@ -1,0 +1,30 @@
+Current working directory: /storage/ssd3/ArthurLee/GIPO/oct-AL-1126
+train 736 valid 244 test 244
+Cold-start: 40.0% -> 294/736 imgs (seed 10)
+train 736 valid 244 test 244
+
+================================================================================
+TRAIN U-Net | labeled=294 imgs x aug4 = 882 items | val=244 test=244
+================================================================================
+Traceback (most recent call last):
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/run_first_iter.py", line 142, in <module>
+    main()
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/run_first_iter.py", line 103, in main
+    out = train_unet(label_idx, args, device)
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/utils/train.py", line 124, in train_unet
+    model = build_model(opt.input_nc, device, simclr_path=simclr_path)
+  File "/storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/utils/train.py", line 51, in build_model
+    return model.to(device)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1340, in to
+    return self._apply(convert)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 900, in _apply
+    module._apply(fn)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 900, in _apply
+    module._apply(fn)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 900, in _apply
+    module._apply(fn)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 927, in _apply
+    param_applied = fn(param)
+  File "/home/ArthurLee/miniconda/envs/oct-env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1326, in convert
+    return t.to(
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2.00 MiB. GPU 6 has a total capacity of 23.68 GiB of which 2.06 MiB is free. Process 963620 has 254.00 MiB memory in use. Process 771574 has 7.69 GiB memory in use. Process 772787 has 7.69 GiB memory in use. Process 776102 has 7.69 GiB memory in use. Including non-PyTorch memory, this process has 368.00 MiB memory in use. Of the allocated memory 109.49 MiB is allocated by PyTorch, and 4.51 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

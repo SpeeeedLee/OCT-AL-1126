@@ -1,0 +1,11 @@
+[pool] 120 jobs over 1 devices: cuda:1
+[dispatch 14:01:55] dev=cuda:1 job=0/120 -> thesis/chapter_5/segmentation/logs/job_000.log
+[dispatch 14:07:10] dev=cuda:1 job=1/120 -> thesis/chapter_5/segmentation/logs/job_001.log
+[dispatch 14:12:26] dev=cuda:1 job=2/120 -> thesis/chapter_5/segmentation/logs/job_002.log
+[dispatch 14:17:41] dev=cuda:1 job=3/120 -> thesis/chapter_5/segmentation/logs/job_003.log
+[dispatch 14:22:56] dev=cuda:1 job=4/120 -> thesis/chapter_5/segmentation/logs/job_004.log
+[dispatch 14:28:11] dev=cuda:1 job=5/120 -> thesis/chapter_5/segmentation/logs/job_005.log
+[dispatch 14:33:21] dev=cuda:1 job=6/120 -> thesis/chapter_5/segmentation/logs/job_006.log
+[dispatch 14:38:37] dev=cuda:1 job=7/120 -> thesis/chapter_5/segmentation/logs/job_007.log
+[dispatch 14:43:52] dev=cuda:1 job=8/120 -> thesis/chapter_5/segmentation/logs/job_008.log
+[dispatch 14:49:07] dev=cuda:1 job=9/120 -> thesis/chapter_5/segmentation/logs/job_009.log

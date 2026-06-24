@@ -146,11 +146,10 @@ def draw(strat, aug, out):
         ps   = sorted(warm)
         mean = np.array([warm[p][0] for p in ps])
         std  = np.array([warm[p][1] for p in ps])
-        ax.errorbar(ps, mean, yerr=std, marker=warm_marker, color="black",
+        ax.errorbar(ps, mean, yerr=std, marker=warm_marker, color=warm_color,
                     linewidth=3, markersize=10, linestyle="--",
                     markeredgecolor="black", markeredgewidth=2.2,
-                    markerfacecolor=warm_color,
-                    capsize=5, elinewidth=1.8, capthick=1.8, ecolor="black",
+                    capsize=5, elinewidth=1.8, capthick=1.8, ecolor=warm_color,
                     label=f"{label} (warm-start by $\\theta^2_{{\\mathrm{{SimCLR}}}}$)")
     else:
         print(f"  [warn] no warm-start data for {strat} — 先跑指令以產生資料")

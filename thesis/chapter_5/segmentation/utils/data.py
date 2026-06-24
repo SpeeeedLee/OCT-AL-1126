@@ -38,6 +38,16 @@ FLIP_SETS = {
     3: ["none", "h", "v"],
     4: ["none", "h", "v", "hv"],
 }
+# Named flip-sets (for variants whose composition differs from the integer codes,
+# e.g. VF-only or VF+HV). h=horizontal, v=vertical, hv=both (diagonal).
+FLIP_SETS_NAMED = {
+    "none": ["none"],
+    "hf":   ["none", "h"],            # = aug2
+    "vf":   ["none", "v"],            # VF only (2x)
+    "hfvf": ["none", "h", "v"],       # = aug3
+    "vfhv": ["none", "v", "hv"],      # VF + HV (3x)
+    "4x":   ["none", "h", "v", "hv"], # = aug4
+}
 
 
 def parse_item(token):
@@ -60,14 +70,16 @@ def apply_flip(arr, flip):
     return arr
 
 
-def expand_with_aug(file_list, aug_factor):
+def expand_with_aug(file_list, aug_factor=None, flips=None):
     """
     Expand a list of filenames into augmented training tokens.
 
-    Returns a new list whose length is ~aug_factor x len(file_list). Originals
-    stay as bare filenames; flipped variants become "name@@<flip>".
+    Either pass an integer `aug_factor` (uses FLIP_SETS) OR an explicit `flips`
+    list (e.g. FLIP_SETS_NAMED['vf']). Returns a new list; originals stay as bare
+    filenames, flipped variants become "name@@<flip>".
     """
-    flips = FLIP_SETS[int(aug_factor)]
+    if flips is None:
+        flips = FLIP_SETS[int(aug_factor)]
     items = []
     for name in file_list:
         for fl in flips:
@@ -76,35 +88,30 @@ def expand_with_aug(file_list, aug_factor):
 
 
 # ---------------------------------------------------------------------------
-# Splitting (verbatim from source)
+# Leakage-free split for ds/segmentation_correct  (2026-06-24 rewrite)
 # ---------------------------------------------------------------------------
-def data_loader(opath, fold):
-    """
-    Deterministic 5-fold split. Returns train/valid/test DataLoaders that yield
-    lists of filenames (batch_size 8). IMPORTANT: this Ch5 pipeline uses a
-    SINGLE fold (default fold 0) -- no cross-validation -- per the experiment
-    design.
-    """
-    n = int(len(os.listdir(opath)) / 5)  # 5 folds cross-validation
-    all_data_filename = sorted(os.listdir(opath))
-    random.Random(42).shuffle(all_data_filename)  # seed = 42 (fixed split)
-    fold_list = [all_data_filename[i:i + n] for i in range(0, len(all_data_filename), n)]
+# The OLD split shuffled all 1224 images and folded them -> the dataset's built-in
+# H-flips (prefix 1_<->3_, 2_<->4_) landed in different splits = test leaked from
+# train. The corrected dataset `ds/segmentation_correct` keeps ONLY the 612 non-
+# flipped images (1_/2_) and is pre-split on disk into image|cell|layer / {train,val}.
+# Here: train = the train/ folder as-is; val/ (122) is halved into valid+test
+# (deterministically) -> overall 8:1:1, mirroring classification. Returned filename
+# tokens INCLUDE the split subfolder ("train/<name>" / "val/<name>") so that
+# o_data/g_data (which do `path + name`) read from the right subfolder.
+def data_loader(opath, fold=0):
+    """opath = <dataroot>/image/  (must contain train/ and val/ subfolders).
+    `fold` kept for backward-compat but ignored (no cross-validation)."""
+    train_list = ["train/" + f for f in sorted(os.listdir(os.path.join(opath, "train")))]
+    val_all = ["val/" + f for f in sorted(os.listdir(os.path.join(opath, "val")))]
+    random.Random(42).shuffle(val_all)            # deterministic val/test split
+    half = len(val_all) // 2
+    valid_list, test_list = val_all[:half], val_all[half:]
 
-    valid_data_list = fold_list[fold]
-    if fold < 4:
-        test_data_list = fold_list[fold + 1]
-    else:
-        test_data_list = fold_list[0]
+    print('train', len(train_list), 'valid', len(valid_list), 'test', len(test_list))
 
-    train_data_list = []
-    [train_data_list.append(x) for x in all_data_filename
-     if x not in (valid_data_list + test_data_list)]
-
-    print('train', len(train_data_list), 'valid', len(valid_data_list), 'test', len(test_data_list))
-
-    train_data_LD = Data.DataLoader(dataset=train_data_list, batch_size=8, shuffle=True, num_workers=4)
-    valid_data_LD = Data.DataLoader(dataset=valid_data_list, batch_size=8, shuffle=False, num_workers=4)
-    test_data_LD = Data.DataLoader(dataset=test_data_list, batch_size=8, shuffle=False, num_workers=4)
+    train_data_LD = Data.DataLoader(dataset=train_list, batch_size=8, shuffle=True, num_workers=4)
+    valid_data_LD = Data.DataLoader(dataset=valid_list, batch_size=8, shuffle=False, num_workers=4)
+    test_data_LD = Data.DataLoader(dataset=test_list, batch_size=8, shuffle=False, num_workers=4)
 
     return train_data_LD, valid_data_LD, test_data_LD
 

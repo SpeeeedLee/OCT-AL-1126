@@ -644,6 +644,18 @@ python3 classification/run_AL.py \
     --exp_path classification/exp_results/ch5_fm_init_al \
     --seed 24 --device cuda:0
  # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy cluster_margin \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 42 --device cuda:9
+  # 已下
 ```
 
 Plot
@@ -660,8 +672,64 @@ python3 thesis/gradcam/dump_al_p30_ckpt.py --device cuda:4 # 已下
 
 ## 做在semantic segmentation, DICE
 
+多數由claude code直接幫我下指令
+
+
+AE預訓練:
+```bash
+python3 thesis/chapter_5/segmentation/autoencoder/train_ae.py --epochs 2000 --device cuda:7
+
+# Plot
+python3 thesis/chapter_5/segmentation/autoencoder/plot_ae_progress.py
+```
+
+剩餘Data Aug:
+
+```bash
+bash thesis/chapter_5/segmentation/scripts/run_vf_30_100.sh   cuda:8 3   
+# VF,  一次 3 個併發
+# 已下
+
+bash thesis/chapter_5/segmentation/scripts/run_vfhv_30_100.sh cuda:6 3   
+# VF+HV, 一次 3 個併發
+# 已下
+```
+
 
 Plot All Figures
 ```bash
 python3 thesis/chapter_5/segmentation/report_table.py
+```
+
+
+## 6/24 重新做在semantic segmentation, DICE --> 之前全跑錯了!!
+
+### 1. Aug sweep(w/o / HF / 4x,各 portion lr 掃描)
+每個丟一張卡(第 3 參數 PAR = 同卡併發數,24GB 卡建議 2–3、49GB 可 5):
+
+```bash
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 1 cuda:5 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 2 cuda:6 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 4 cuda:7 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh vf   cuda:8 3 "2.5 5 10 100 20 40 60 80 30 70 90"   # VF only # 已下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh vfhv cuda:0 5 "2.5 5 10 100 20 40 60 80 30 70 90"   # VF+HV  # 已下
+```
+每個 aug ≈ 183 jobs:ρ{2.5…90} × 5 seeds × per-portion 3 lrs + ρ=100 單 seed×6 runs。
+ρ<100 = 1 run/格(rerun-safe);結果寫 exp_results/aug_curve/aug{1,2,4}/。
+HF aug 現在真的有意義了(資料不再預翻)。
+
+### 2. Autoencoder 訓練(train split,你決定 epoch 數)
+```bash
+python3 thesis/chapter_5/segmentation/autoencoder/train_ae.py --epochs 2000 --device cuda:1
+```
+--epochs 你自己定;snapshot/ckpt 時間點照舊(1,3,10,30,50,100,200,500,1000,1500,2000)。
+dataroot 已預設 ds/segmentation_correct,train 在 490 張上跑、每 epoch 印 loss。
+舊的 AE / SimCLR ckpt + training loss 全在 segmentation_old_wrong/(rename 後已自動隔離 = 等同 _old_wrong),新的寫在新 segmentation/autoencoder/ 下。
+
+### 3. 畫圖(都照常,只是在新 segmentation 底下)
+
+```bash
+python3 thesis/chapter_5/segmentation/report_table.py                      # aug 曲線 + 表
+python3 thesis/chapter_5/segmentation/autoencoder/plot_ae_progress.py      # AE loss/重建圖
+python3 thesis/chapter_5/segmentation/plot_dataset_samples.py              # 資料樣本(已指新資料)
 ```

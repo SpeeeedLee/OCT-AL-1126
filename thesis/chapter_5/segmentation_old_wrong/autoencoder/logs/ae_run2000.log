@@ -1,0 +1,15 @@
+Current working directory: /storage/ssd3/ArthurLee/GIPO/oct-AL-1126
+train 736 valid 244 test 244
+display images: ['4_20180713_102951_28-right ear-N.png', '2_20200207_151710_16_calf.png', '4_20200206_095716_11_volar arm.png', '2_20180913_160821_51-shark-N.png', '2_20181207_093246_82-abdoman-N.png', '3_20200207_172703_02_volar arm.png', '1_20181119_141327_78-waist-N.png', '1_20180920_093612_54-forearm lateral-N.png', '4_20190927_152538_122-forearm lateral-N.png', '3_20190717_153933_107-face-N.png']
+  ep1/2000: recon_mse=0.096019 lr=3.60e-06  [snap]
+✓ saved -> /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/figs/ae_reconstruction.png
+  ep3/2000: recon_mse=0.050026 lr=6.80e-06  [snap]
+✓ saved -> /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/figs/ae_reconstruction.png
+  ep10/2000: recon_mse=0.028676 lr=1.00e-05  [snap]
+✓ saved -> /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/figs/ae_reconstruction.png
+  ep30/2000: recon_mse=0.018636 lr=1.00e-05  [snap]
+✓ saved -> /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/figs/ae_reconstruction.png
+  ep50/2000: recon_mse=0.014035 lr=9.99e-06  [snap]
+✓ saved -> /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/figs/ae_reconstruction.png
+  ep100/2000: recon_mse=0.008956 lr=9.94e-06  [snap]
+✓ saved -> /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/thesis/chapter_5/segmentation/figs/ae_reconstruction.png

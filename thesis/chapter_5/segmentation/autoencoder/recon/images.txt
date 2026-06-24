@@ -1,0 +1,10 @@
+00	train/2_20181119_113828_77-face-N.png
+01	train/1_20180928_090738_56-nose-N.png
+02	train/1_20180525_163552_l_t abdomen.png
+03	train/2_20190927_114852_121-penile base-N.png
+04	train/1_20191002_154744_123-nose-N.png
+05	train/1_20190823_110926_115-knee-N.png
+06	train/1_20190719_152912_108- left thigh-N.png
+07	train/1_20181031_162826_67-underarm-N.png
+08	train/2_20190916_095941_120-forehead-N.png
+09	train/1_20180920_093528_54-forearm lateral-N.png

@@ -1,6 +1,0 @@
-[pool] 5 jobs over 5 devices: cuda:0 cuda:1 cuda:2 cuda:3 cuda:4
-[dispatch 19:03:52] dev=cuda:0 job=0/5 -> thesis/chapter_5/segmentation/logs/job_000.log
-[dispatch 19:03:52] dev=cuda:1 job=1/5 -> thesis/chapter_5/segmentation/logs/job_001.log
-[dispatch 19:03:52] dev=cuda:2 job=2/5 -> thesis/chapter_5/segmentation/logs/job_002.log
-[dispatch 19:03:52] dev=cuda:3 job=3/5 -> thesis/chapter_5/segmentation/logs/job_003.log
-[dispatch 19:03:52] dev=cuda:4 job=4/5 -> thesis/chapter_5/segmentation/logs/job_004.log

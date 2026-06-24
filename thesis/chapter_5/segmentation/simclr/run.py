@@ -32,7 +32,7 @@ from thesis.chapter_5.segmentation.simclr.trainer import SimCLRTrainer
 
 def parse():
     p = argparse.ArgumentParser()
-    p.add_argument('--dataroot', default='./ds/segmentation')
+    p.add_argument('--dataroot', default="./ds/segmentation_correct")
     p.add_argument('--batch_size', type=int, default=256)
     p.add_argument('--epochs', type=int, default=500)
     p.add_argument('--lr', type=float, default=2e-4, help='SWEEP this (from-scratch != 2e-4)')
