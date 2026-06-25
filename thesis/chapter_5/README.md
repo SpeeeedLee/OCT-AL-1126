@@ -656,6 +656,30 @@ python3 classification/run_AL.py \
     --exp_path classification/exp_results/ch5_fm_init_al \
     --seed 42 --device cuda:9
   # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy cluster_margin \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 10 --device cuda:9
+    # 已下
+
+python3 classification/run_AL.py \
+    --task_type hard \
+    --AL_strategy cluster_margin \
+    --pretrained_weights simclr \
+    --simclr_path SSL/simclr/ckpt/resnet18_simclr_lr0.0002_bs256_ep500.pkl \
+    --portion_start 2.5 --portion_end 62.5 --portion_interval 2.5 \
+    --resume_labeled_ids thesis/chapter_5/coldstart_fm/labeled_ids/simclr__resnet18.json \
+    --resume_from 2.5 \
+    --exp_path classification/exp_results/ch5_fm_init_al \
+    --seed 24 --device cuda:8
+  # 已下
 ```
 
 Plot

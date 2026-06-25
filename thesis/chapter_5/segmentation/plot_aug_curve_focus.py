@@ -73,8 +73,8 @@ def main():
     ax.grid(True, linestyle="--", alpha=0.4, linewidth=1.0)
     for s in ax.spines.values():
         s.set_linewidth(1.5)
-    ax.legend(fontsize=16, framealpha=0.95, loc="upper left", ncol=2,
-              columnspacing=1.2, handlelength=1.8)  # 2 cols → shorter, avoids the lines
+    ax.legend(fontsize=14, framealpha=0.95, loc="upper left", ncol=3,
+              columnspacing=1.0, handlelength=1.6)  # 3 cols
 
     # --- magnifier inset: only zoom=True series, ρ in [ZOOM_LO, ZOOM_HI] ---
     axins = ax.inset_axes([0.40, 0.085, 0.56, 0.44])   # [x,y,w,h] axes-fraction (lower-right)

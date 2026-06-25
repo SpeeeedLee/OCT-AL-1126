@@ -79,7 +79,7 @@ def loss_curve(out):
     ax.set_yscale("log")
     ax.set_xlabel("Pretraining Epoch", fontsize=26, labelpad=10)
     ax.set_ylabel("MSE Loss", fontsize=26, labelpad=10)
-    ax.set_title(r"$\theta_{\mathrm{AE}}$ Training Loss", fontsize=26, pad=12)
+    ax.set_title(r"Training Loss Curve of $\theta_{\mathrm{AE}}$", fontsize=26, pad=12)
     ax.grid(True, which="both", ls="--", alpha=0.4, linewidth=1.0)
     ax.tick_params(axis="both", labelsize=20, width=1.5, length=6)
     for s in ax.spines.values():
