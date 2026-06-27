@@ -144,13 +144,16 @@ def draw_group(gname, items, rnd, target):
         drew = True
     if target is not None:   # ceiling = w/o-Aug full-data (rho=100%)
         ax.axhline(y=target, color="black", linestyle=(0, (8, 4)), linewidth=2.2,
-                   alpha=0.85, label="Target (w/o Aug 100%)")
+                   alpha=0.85, label="Target")
     if not drew:
         plt.close(fig); print(f"  [skip group] {gname}: nothing to draw"); return
     ax.set_xlabel(r"Labeled Training Data Ratio $\rho$ (%)", fontsize=FONT_LABEL, labelpad=10)
     ax.set_ylabel("Dice", fontsize=FONT_LABEL, labelpad=10)
     ax.set_xticks([5, 10, 20, 30, 40, 50, 60])
     ax.set_xlim(0, 62)    # left padding so ρ=2.5 isn't flush; AL range 2.5->60
+    # ax.set_ylim(0.46, 0.72)  # (disabled) common y-range across all Dice-vs-ρ figures
+    # _yt = [0.46, 0.50, 0.55, 0.60, 0.65, 0.70, 0.72]
+    # ax.set_yticks(_yt); ax.set_yticklabels([f"{v:.2f}" for v in _yt])
     ax.legend(fontsize=18, framealpha=0.9, loc="lower right")
     style_ax(ax)
     fig.tight_layout()

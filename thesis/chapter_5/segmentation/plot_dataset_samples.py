@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-3x2 figure: 3 random TRAIN OCT images (left = Original images, right = Nuclei labels).
+3x2 figure: the FIRST 3 images of ae_reconstruction.png (left = Original images,
+right = Nuclei labels), so this montage matches the reconstruction figure.
 Run (repo root): python3 thesis/chapter_5/segmentation/plot_dataset_samples.py
 """
 import os
-import random
 import numpy as np
 from PIL import Image
 import matplotlib
@@ -15,25 +15,23 @@ import matplotlib.pyplot as plt
 HERE = os.path.dirname(__file__)
 IMG_DIR = "ds/segmentation_correct/image"
 CELL_DIR = "ds/segmentation_correct/cell"
-SEED = 42                      # reproducible pick
+RECON_IMAGES = os.path.join(HERE, "autoencoder", "recon", "images.txt")
 plt.rcParams.update({"font.family": "sans-serif", "font.sans-serif": ["Arial", "DejaVu Sans"]})
 
 
-def train_files(fold=0):
-    import sys; sys.path.insert(0, os.getcwd())
-    from thesis.chapter_5.segmentation.utils.data import data_loader
-    tr, _, _ = data_loader(IMG_DIR + "/", fold)
-    files = []
-    for b in tr:
-        files.extend(b)
-    return files
+def recon_names(n=3):
+    """First n image names from the ae_reconstruction display set (recon/images.txt)."""
+    names = []
+    with open(RECON_IMAGES) as f:
+        for line in f:
+            _, nm = line.rstrip("\n").split("\t")
+            names.append(nm)
+    return names[:n]
 
 
 def main():
-    files = sorted(train_files())     # data_loader order isn't deterministic -> sort first
-    random.Random(SEED).shuffle(files)
-    picks = files[:3]
-    print("picked train images:", picks)
+    picks = recon_names(3)            # the first 3 images shown in ae_reconstruction.png
+    print("picked (ae_reconstruction first 3):", picks)
 
     # image is 500x384 (W x H); keep aspect
     fig, axes = plt.subplots(3, 2, figsize=(7.2, 7.0))

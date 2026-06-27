@@ -91,23 +91,27 @@ def loss_curve(out):
     print(f"  saved -> {out}  (epochs 1..{ep[-1]})")
 
 
-def recon_grid(out, recon_dir=RECON):
+def recon_grid(out, recon_dir=RECON, n_show=None, wide=1.0, wspace=0.03):
     orig = os.path.join(recon_dir, "original")
     if not os.path.isdir(orig):
         print(f"  [skip] no {os.path.basename(recon_dir)}/original yet"); return
-    inputs = _load_row(orig)
+    sl = slice(None) if n_show is None else slice(0, n_show)   # first n_show images
+    inputs = _load_row(orig)[sl]
     eps = sorted(int(d[2:]) for d in os.listdir(recon_dir)
                  if d.startswith("ep") and d[2:].isdigit())
-    rows = [("Input", inputs)] + [(f"Epoch {e}", _load_row(os.path.join(recon_dir, f"ep{e:04d}")))
+    # row labels: "Input" then the bare epoch NUMBER (a single "Epoch" header is drawn
+    # once on the left, so we don't repeat the word "Epoch" on every row).
+    rows = [("Input", inputs)] + [(str(e), _load_row(os.path.join(recon_dir, f"ep{e:04d}"))[sl])
                                   for e in eps]
     ncol = len(inputs); nrow = len(rows)
     # size to fit one thesis page (content <= 5.6 x 9.0 in; row labels + tight bbox
     # add a little) while keeping each image's true aspect (512x384 -> W/H=1.333).
+    # `wide` widens the whole figure (images + gaps); `wspace` is the inter-image gap.
     AR, HEADER = 512.0 / 384.0, 0.5
     ch = min(5.6 / (ncol * AR), (9.0 - HEADER) / nrow)
     cw = AR * ch
-    fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * cw, nrow * ch + HEADER),
-                             gridspec_kw=dict(wspace=0.03, hspace=0.03))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * cw * wide, nrow * ch + HEADER),
+                             gridspec_kw=dict(wspace=wspace, hspace=0.03))
     axes = np.atleast_2d(axes)
     for r, (label, imgs) in enumerate(rows):
         is_in = (r == 0)
@@ -124,12 +128,22 @@ def recon_grid(out, recon_dir=RECON):
                               color="#D62728" if is_in else "#333333",
                               rotation=0, ha="right", va="center", labelpad=14)
     fig_h = nrow * ch + HEADER
-    fig.subplots_adjust(left=0.10, right=0.995, top=1 - HEADER / fig_h, bottom=0.006)
+    fig.subplots_adjust(left=0.16, right=0.995, top=1 - HEADER / fig_h, bottom=0.006)
+    # center the title over the IMAGE columns (not the whole figure), so the left "Epoch"
+    # margin doesn't pull it left.
+    x_lab = axes[0, 0].get_position().x0
+    x_img_c = (x_lab + axes[0, -1].get_position().x1) / 2
     fig.suptitle(r"$\theta_{\mathrm{AE}}$ Reconstruction Results at Different Epochs",
-                 fontsize=15, y=1 - 0.46 * HEADER / fig_h)
+                 fontsize=15, x=x_img_c, y=1 - 0.46 * HEADER / fig_h)
+    # a SINGLE vertical "Epoch" label down the left side, spanning the epoch-number rows
+    # (rows 1..end) — the word "Epoch" appears once instead of on every row.
+    y_top = axes[1, 0].get_position().y1        # top of first epoch row
+    y_bot = axes[-1, 0].get_position().y0       # bottom of last row
+    fig.text(x_lab - 0.135, (y_top + y_bot) / 2, "Epoch", fontsize=14, fontweight="bold",
+             color="#333333", ha="center", va="center", rotation=90)
     fig.savefig(out, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
-    print(f"  saved -> {out}  (Input + {len(eps)} epoch rows: {eps})")
+    print(f"  saved -> {out}  ({ncol} imgs, Input + {len(eps)} epoch rows: {eps})")
 
 
 def _latest_ep(recon_dir):
@@ -189,6 +203,8 @@ def main():
     os.makedirs(FIGS, exist_ok=True)
     print("— loss curve —");      loss_curve(os.path.join(FIGS, "ae_loss_curve.png"))
     print("— recon grid (10) —"); recon_grid(os.path.join(FIGS, "ae_reconstruction.png"), RECON)
+    print("— recon grid (5) —");  recon_grid(os.path.join(FIGS, "ae_reconstruction_5.png"), RECON,
+                                             n_show=5, wide=1.3, wspace=0.10)
     print("— recon vs GT (10) —");recon_vs_gt(os.path.join(FIGS, "ae_recon_gt.png"), a.dataroot,
                                               RECON, n_show=5, figsize=(6.3, 9.7))
     # same but using the LATEST trained epoch (not fixed 1000): Original | Epoch{latest} + GT

@@ -18,6 +18,11 @@ set -u
 # the calling shell, and relative paths resolve).
 source "$(conda info --base)/etc/profile.d/conda.sh" && conda activate oct-env
 cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Ctrl-C / TERM -> kill ALL child trainings, not just the dispatcher.
+cleanup() { trap - INT TERM; echo; echo "[run_aug_sweep] interrupted -> killing child runs..."; \
+            kill $(jobs -p) 2>/dev/null; pkill -P $$ 2>/dev/null; exit 130; }
+trap cleanup INT TERM
 AUG="${1:?usage: bash run_aug_sweep.sh <1|2|4|vf|vfhv> cuda:N [PAR=2] [\"PORTIONS\"]}"
 DEV="${2:?need a device, e.g. cuda:0}"
 PAR="${3:-2}"

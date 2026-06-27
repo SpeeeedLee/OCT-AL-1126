@@ -93,7 +93,8 @@ def main():
     print("#" * 78)
     import importlib, sys
     sys.path.insert(0, HERE)
-    for mod in ("plot_aug_curve", "plot_aug_curve_focus", "plot_al_groups"):
+    for mod in ("plot_aug_curve", "plot_aug_curve_focus", "plot_al_groups",
+                "plot_init_compare", "plot_baseline_curve"):
         m = importlib.import_module(mod)
         m.main()
 

@@ -732,11 +732,15 @@ python3 thesis/chapter_5/segmentation/report_table.py
 每個丟一張卡(第 3 參數 PAR = 同卡併發數,24GB 卡建議 2–3、49GB 可 5):
 
 ```bash
-bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 1 cuda:5 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已下
-bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 2 cuda:6 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已下
-bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 4 cuda:7 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已下
-bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh vf   cuda:8 3 "2.5 5 10 100 20 40 60 80 30 70 90"   # VF only # 已下
-bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh vfhv cuda:0 5 "2.5 5 10 100 20 40 60 80 30 70 90"   # VF+HV  # 已下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 1 cuda:9 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已重下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 2 cuda:6 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已重下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh 4 cuda:7 3 "2.5 5 10 100 20 40 60 80 30 70 90" # 已重下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh vf   cuda:8 3 "2.5 5 10 100 20 40 60 80 30 70 90"   # VF only # 已重下
+bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh vfhv cuda:0 5 "2.5 5 10 100 20 40 60 80 30 70 90"   # VF+HV  # 已重下
+
+for AUG in 1 2 4 vf vfhv; do
+  bash thesis/chapter_5/segmentation/scripts/run_aug_sweep.sh $AUG cuda:9 3 "50"
+done
 ```
 每個 aug ≈ 183 jobs:ρ{2.5…90} × 5 seeds × per-portion 3 lrs + ρ=100 單 seed×6 runs。
 ρ<100 = 1 run/格(rerun-safe);結果寫 exp_results/aug_curve/aug{1,2,4}/。
@@ -756,4 +760,96 @@ dataroot 已預設 ds/segmentation_correct,train 在 490 張上跑、每 epoch �
 python3 thesis/chapter_5/segmentation/report_table.py                      # aug 曲線 + 表
 python3 thesis/chapter_5/segmentation/autoencoder/plot_ae_progress.py      # AE loss/重建圖
 python3 thesis/chapter_5/segmentation/plot_dataset_samples.py              # 資料樣本(已指新資料)
+```
+
+
+AE weight init
+```bash
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 5 --seeds 10 24 38 42 57 --aug 4 --device cuda:6 --max-runs 3
+
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 2.5 5 10 20 30 40 50 60 70 80 90 100 --seeds 10 24 --aug 4 --device cuda:0 --max-runs 5
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 2.5 5 10 20 30 40 50 60 70 80 90 100 --seeds 38 42 --aug 4 --device cuda:1 --max-runs 5
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 2.5 5 10 20 30 40 50 60 70 80 90 100 --seeds 57 --aug 4 --device cuda:8 --max-runs 3
+
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 2.5 5 10 20 30 40 50 60 70 80 90 100 --seeds 10 24 --aug 1 --device cuda:2 --max-runs 5
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 2.5 5 10 20 30 40 50 60 70 80 90 100 --seeds 38 42 --aug 1 --device cuda:3 --max-runs 5
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 2.5 5 10 20 30 40 50 60 70 80 90 100 --seeds 57 --aug 1 --device cuda:9 --max-runs 3
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 10 --seeds 10 24 38 42 57 --aug 1 --device cuda:9 --max-runs 3
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 1000 --portions 2.5 5 --seeds 10 24 38 42 57 --aug 1 --device cuda:7 --max-runs 3
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+     --ae-epoch 2000 --portions 20 --seeds 10 24 --aug 4 \
+     --lrs 0.007 0.01 --device cuda:9 --max-runs 3
+
+## 以上皆已下!
+```
+
+Warmup
+```bash
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+  --ae-epoch 2000 --portions 2.5 --aug 4 --device cuda:1 --max-runs 4 --warmup 5
+
+# 已下
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+  --ae-epoch 2000 --portions 2.5 --aug 4 --device cuda:2 --max-runs 4 --warmup 10
+
+# 已下
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+  --ae-epoch 2000 --portions 2.5 --aug 4 --device cuda:1 --max-runs 4 --warmup 15
+
+# 已下
+
+bash thesis/chapter_5/segmentation/scripts/run_ae_finetune.sh \
+  --ae-epoch 2000 --portions 10 --aug 4 --device cuda:2 --max-runs 4 --warmup 10
+
+```
+
+存 model ckpt
+
+```bash
+bash thesis/chapter_5/segmentation/scripts/run_3aug_ckpt_infer.sh cuda:0
+```
+
+
+最後! 主動學習!
+
+```bash
+DEVICE=cuda:0 STRATEGIES=margin SEEDS="10 24" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:2 STRATEGIES=margin SEEDS="38" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:0 STRATEGIES=margin SEEDS=57 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:2 STRATEGIES=margin SEEDS="42" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+
+DEVICE=cuda:3 STRATEGIES=coreset SEEDS="10" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:3 STRATEGIES=coreset SEEDS="24" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:3 STRATEGIES=coreset SEEDS="38" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:4 STRATEGIES=coreset SEEDS="42" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:8 STRATEGIES=coreset SEEDS=57 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+
+
+DEVICE=cuda:9 STRATEGIES=cluster_margin SEEDS=10 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:9 STRATEGIES=cluster_margin SEEDS=24 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:7 STRATEGIES=cluster_margin SEEDS=38 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:7 STRATEGIES=cluster_margin SEEDS=42 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:2 STRATEGIES=cluster_margin SEEDS=57 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+
+# 以上皆已下
 ```

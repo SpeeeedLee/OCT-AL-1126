@@ -68,16 +68,19 @@ def main():
     ax.set_ylabel("Dice", fontsize=FONT_LABEL, labelpad=10)
     ax.set_xticks([5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
     ax.set_xlim(0, 103)
-    ax.set_ylim(top=0.75)
+    # ax.set_ylim(0.46, 0.72)        # (disabled) common y-range across all Dice-vs-ρ figures
+    # _yt = [0.46, 0.50, 0.55, 0.60, 0.65, 0.70, 0.72]
+    # ax.set_yticks(_yt); ax.set_yticklabels([f"{v:.2f}" for v in _yt])
     ax.tick_params(axis="both", labelsize=FONT_TICK, width=1.5, length=6)
     ax.grid(True, linestyle="--", alpha=0.4, linewidth=1.0)
     for s in ax.spines.values():
         s.set_linewidth(1.5)
-    ax.legend(fontsize=14, framealpha=0.95, loc="upper left", ncol=3,
-              columnspacing=1.0, handlelength=1.6)  # 3 cols
+    # legend back at lower-right, 2 rows (ncol=3 for the 5 series)
+    ax.legend(fontsize=14, framealpha=0.95, loc="lower right", ncol=3,
+              columnspacing=1.0, handlelength=1.6)
 
     # --- magnifier inset: only zoom=True series, ρ in [ZOOM_LO, ZOOM_HI] ---
-    axins = ax.inset_axes([0.40, 0.085, 0.56, 0.44])   # [x,y,w,h] axes-fraction (lower-right)
+    axins = ax.inset_axes([0.07, 0.52, 0.52, 0.43])   # [x,y,w,h] axes-fraction (upper-left)
     ylo, yhi = [], []
     for A, label, color, marker, ls, zoom, bound in SERIES:
         if not zoom:
