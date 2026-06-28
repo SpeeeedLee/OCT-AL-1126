@@ -37,7 +37,7 @@ from thesis.chapter_5.segmentation.utils.data import data_loader
 from thesis.chapter_5.segmentation.utils.train import train_unet
 from thesis.chapter_5.segmentation.utils.jsonio import save_compact_json
 from thesis.chapter_5.segmentation.AL_strategy.uncertainty import margin, confidence, entropy
-from thesis.chapter_5.segmentation.AL_strategy.diversity import coreset
+from thesis.chapter_5.segmentation.AL_strategy.diversity import coreset, typiclust
 from thesis.chapter_5.segmentation.AL_strategy.hybrid import cluster_margin
 
 
@@ -45,7 +45,7 @@ def parse_arguments():
     p = argparse.ArgumentParser()
     p.add_argument('--AL_strategy', required=True,
                    choices=['random', 'margin', 'confidence', 'entropy',
-                            'coreset', 'cluster_margin'])
+                            'coreset', 'typiclust', 'cluster_margin'])
     p.add_argument('--portion_start', type=float, required=True)
     p.add_argument('--portion_end', type=float, required=True)
     p.add_argument('--portion_interval', type=float, required=True)
@@ -105,6 +105,8 @@ def select_batch(strategy, model, opath, gpath_cell, unlabeled, labeled, k, devi
         return entropy(model, opath, gpath_cell, unlabeled, k, device)
     if strategy == 'coreset':
         return coreset(model, opath, unlabeled, labeled, k, device)
+    if strategy == 'typiclust':
+        return typiclust(model, opath, unlabeled, labeled, k, device)
     if strategy == 'cluster_margin':
         return cluster_margin(model, opath, gpath_cell, unlabeled, k, device)
     raise NotImplementedError(strategy)

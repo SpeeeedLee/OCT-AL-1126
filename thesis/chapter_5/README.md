@@ -852,4 +852,34 @@ DEVICE=cuda:7 STRATEGIES=cluster_margin SEEDS=42 bash thesis/chapter_5/segmentat
 DEVICE=cuda:2 STRATEGIES=cluster_margin SEEDS=57 bash thesis/chapter_5/segmentation/scripts/run_al.sh
 
 # 以上皆已下
+
+DEVICE=cuda:1 STRATEGIES=margin SEEDS="24" bash thesis/chapter_5/segmentation/scripts/run_al.sh
+
+# 以上補下了
+
+
+# --- margin (w/o Aug) ---
+DEVICE=cuda:5 STRATEGIES=margin         SEEDS=10 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:8 STRATEGIES=margin         SEEDS=24 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:8 STRATEGIES=margin         SEEDS=38 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:0 STRATEGIES=margin         SEEDS=42 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:0 STRATEGIES=margin         SEEDS=57 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+# --- coreset (w/o Aug) ---
+DEVICE=cuda:1 STRATEGIES=coreset  SEEDS=10 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:1 STRATEGIES=coreset        SEEDS=24 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:1 STRATEGIES=coreset        SEEDS=38 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:4 STRATEGIES=coreset        SEEDS=42 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:4 STRATEGIES=coreset        SEEDS=57 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+# --- cluster_margin (w/o Aug) ---
+DEVICE=cuda:1 STRATEGIES=cluster_margin SEEDS=10 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:6 STRATEGIES=cluster_margin SEEDS=24 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:6 STRATEGIES=cluster_margin SEEDS=38 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:N STRATEGIES=cluster_margin SEEDS=42 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:N STRATEGIES=cluster_margin SEEDS=57 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh
+
+```
+
+畫 noaug
+```bash
+python3 thesis/chapter_5/segmentation/plot_al_noaug.py
 ```

@@ -45,6 +45,7 @@ the image descriptor):
 | `confidence` | `AL_strategy/uncertainty.py` | `1-max(p,1-p)`, mean over pixels |
 | `entropy` | `AL_strategy/uncertainty.py` | binary entropy, mean over pixels |
 | `coreset` | `AL_strategy/diversity.py` | k-Center-Greedy on encoder-GAP embeddings, conditioned on labeled set |
+| `typiclust` | `AL_strategy/diversity.py` | TypiClust (Hacohen ICML'22): KMeans(\|L\|+budget) on the **same** encoder-GAP embeddings as coreset → order clusters (fewest-labeled, then biggest) → round-robin pick the most TYPICAL (1/avg-KNN-dist, K=20) unlabeled point. Low-budget/cold-start AL. |
 | `cluster_margin` | `AL_strategy/hybrid.py` | margin pool → L2-norm embeddings → HAC(avg) → round-robin |
 | `random` | in `run_AL.py` | passive baseline (= aug4 cold-start curve) |
 

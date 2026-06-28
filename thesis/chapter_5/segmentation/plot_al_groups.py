@@ -123,7 +123,7 @@ def style_ax(ax):
         s.set_linewidth(1.5)
 
 
-def draw_group(gname, items, rnd, target):
+def draw_group(gname, items, rnd, target, title=None):
     fig, ax = plt.subplots(figsize=(12, 8))
     drew = False
     for key, label, color, marker in items:
@@ -142,13 +142,16 @@ def draw_group(gname, items, rnd, target):
                 linestyle="--", label="Random")
         ax.fill_between(ps, mean - std, mean + std, color="#404040", alpha=0.12)
         drew = True
-    if target is not None:   # ceiling = w/o-Aug full-data (rho=100%)
-        ax.axhline(y=target, color="black", linestyle=(0, (8, 4)), linewidth=2.2,
-                   alpha=0.85, label="Target")
+    # Target line removed per request (uncomment to restore):
+    # if target is not None:   # ceiling = w/o-Aug full-data (rho=100%)
+    #     ax.axhline(y=target, color="black", linestyle=(0, (8, 4)), linewidth=2.2,
+    #                alpha=0.85, label="Target")
     if not drew:
         plt.close(fig); print(f"  [skip group] {gname}: nothing to draw"); return
     ax.set_xlabel(r"Labeled Training Data Ratio $\rho$ (%)", fontsize=FONT_LABEL, labelpad=10)
     ax.set_ylabel("Dice", fontsize=FONT_LABEL, labelpad=10)
+    if title:
+        ax.set_title(title, fontsize=FONT_LABEL, pad=12)
     ax.set_xticks([5, 10, 20, 30, 40, 50, 60])
     ax.set_xlim(0, 62)    # left padding so ρ=2.5 isn't flush; AL range 2.5->60
     # ax.set_ylim(0.46, 0.72)  # (disabled) common y-range across all Dice-vs-ρ figures
@@ -165,12 +168,14 @@ def draw_group(gname, items, rnd, target):
 
 def main():
     rnd, target = random_curve()
+    TITLE_4X = "HF+VF+HVF (4x)"             # mark the 4x-aug AL figures (vs the al_noaug ones)
+    TITLED = {"diversity", "hybrid"}        # + al_strategies below (uncertainty left untitled per request)
     for gname, items in GROUPS.items():
         print(f"— {gname} —")
-        draw_group(gname, items, rnd, target)
+        draw_group(gname, items, rnd, target, title=TITLE_4X if gname in TITLED else None)
     # combined overlay: Margin + Core-set + Cluster-Margin on one figure
     print("— al_strategies (combined) —")
-    draw_group("al_strategies", COMBINED, rnd, target)
+    draw_group("al_strategies", COMBINED, rnd, target, title=TITLE_4X)
 
 
 if __name__ == "__main__":
