@@ -874,8 +874,28 @@ DEVICE=cuda:4 STRATEGIES=coreset        SEEDS=57 AUG=1 EXP=./thesis/chapter_5/se
 DEVICE=cuda:1 STRATEGIES=cluster_margin SEEDS=10 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
 DEVICE=cuda:6 STRATEGIES=cluster_margin SEEDS=24 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
 DEVICE=cuda:6 STRATEGIES=cluster_margin SEEDS=38 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
-DEVICE=cuda:N STRATEGIES=cluster_margin SEEDS=42 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh
-DEVICE=cuda:N STRATEGIES=cluster_margin SEEDS=57 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:9 STRATEGIES=cluster_margin SEEDS=42 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:9 STRATEGIES=cluster_margin SEEDS=57 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh  # 已下
+
+```
+
+
+補個TypiClust
+```bash
+DEVICE=cuda:7 STRATEGIES=typiclust SEEDS=10 bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:5 STRATEGIES=typiclust SEEDS=24 bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:5 STRATEGIES=typiclust SEEDS=38 bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:N STRATEGIES=typiclust SEEDS=42 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:N STRATEGIES=typiclust SEEDS=57 bash thesis/chapter_5/segmentation/scripts/run_al.sh
+
+
+
+DEVICE=cuda:7 STRATEGIES=typiclust SEEDS=10 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:1 STRATEGIES=typiclust SEEDS=24 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh # 已下
+DEVICE=cuda:N STRATEGIES=typiclust SEEDS=38 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:N STRATEGIES=typiclust SEEDS=42 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh
+DEVICE=cuda:N STRATEGIES=typiclust SEEDS=57 AUG=1 EXP=./thesis/chapter_5/segmentation/exp_results/al_noaug bash thesis/chapter_5/segmentation/scripts/run_al.sh
+
 
 ```
 

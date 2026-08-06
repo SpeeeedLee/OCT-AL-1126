@@ -166,8 +166,6 @@ def main():
 
     # ── vertical separator at ρ=60 (single-seed region starts at 65) ─────
     ax.axvline(x=60.0, color="gray", linestyle=":", linewidth=1.2, alpha=0.6)
-    ax.text(61.5, ax.get_ylim()[0] + 1.0 if ax.get_ylim()[1] > 0 else 70,
-            "seed 42 only", fontsize=11, color="gray", va="bottom")
 
     ax.set_xlabel(r"Labeled Training Data Ratio $\rho$ (%)",
                   fontsize=FONT_LABEL, labelpad=10)

@@ -176,6 +176,12 @@ def main():
     # combined overlay: Margin + Core-set + Cluster-Margin on one figure
     print("— al_strategies (combined) —")
     draw_group("al_strategies", COMBINED, rnd, target, title=TITLE_4X)
+    # single-strategy 4x figures (parallel to al_noaug_<strat>): each = strategy + Random
+    SINGLES = COMBINED + [("typiclust", "TypiClust", "#74C476", "v")]
+    for key, label, color, marker in SINGLES:
+        print(f"— al_4aug_{key} —")
+        draw_group(f"al_4aug_{key}", [(key, label, color, marker)], rnd, target,
+                   title=f"{TITLE_4X} — {label}")
 
 
 if __name__ == "__main__":

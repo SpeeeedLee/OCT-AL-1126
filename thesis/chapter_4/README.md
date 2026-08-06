@@ -602,3 +602,172 @@ AUGS="hf 4x" PORTIONS=100 FOLDS=8  DEVICE=cuda:9 ./thesis/chapter_5/run_5_x_aug_
 
 python3 thesis/chapter_5/aggregate_aug_cv.py 
 ```
+
+
+
+## 補跑: SimCLR Pretraining using different batch size and epoch
+
+```bash
+
+#### SimCLR Pretraining ####
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126
+
+# bs32
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 --lr 0.0002 --val-open -b 32  --epochs 1000 --device cuda:0
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 --lr 0.0002 --val-open -b 32  --epochs 2000 --device cuda:1
+# bs64
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 --lr 0.0002 --val-open -b 64  --epochs 1000 --device cuda:2
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 --lr 0.0002 --val-open -b 64  --epochs 2000 --device cuda:3
+
+### 6/28 以上已下，以下還沒有!
+
+# bs128（只缺 ep2000）
+python3 SSL/simclr/run.py -data ./ds/classification/seven_class/train -a resnet18 --lr 0.0002 --val-open -b 128 --epochs 2000 --device cuda:8 # 也已下
+
+
+#### 不知為啥要建Link ####
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/SSL/simclr/ckpt
+for pair in 16:1000 16:2000 32:1000 32:2000 64:1000 64:2000 128:1000 128:2000 256:1000 256:2000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  src=resnet18_simclr_lr0.0002_bs${bs}_ep${ep}_wval.pkl
+  dst=resnet18_simclr_lr0.0002_bs${bs}_ep${ep}.pkl
+  if [ -f "$src" ]; then ln -sf "$src" "$dst"; echo "linked $dst -> $src";
+  else echo "skip (ckpt 還沒好): $src"; fi
+done
+
+#### 下游100% Fine-tuning ####
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/classification
+GPU=cuda:0
+LRS="1e-4 5e-4 7e-4"
+for pair in 16:1000 16:2000 32:1000 32:2000 64:1000 64:2000 128:1000 128:2000 256:1000 256:2000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  for lr in $LRS; do
+    for run in 1 2 3; do
+      python3 ./run_first_iter_simclr.py --task_type hard \
+        --pretrained_weights simclr --simclr_init imagenet \
+        --simclr_lr 0.0002 --simclr_bs $bs --simclr_ep $ep \
+        --portion 100 --seed 42 --lr $lr --device $GPU || true
+    done
+  done
+done
+
+
+### 6/29早上下
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/SSL/simclr/ckpt
+for pair in 32:1000 64:1000 128:1000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  ln -sf resnet18_simclr_lr0.0002_bs${bs}_ep${ep}_wval.pkl \
+         resnet18_simclr_lr0.0002_bs${bs}_ep${ep}.pkl
+  echo "linked bs${bs}_ep${ep}"
+done
+
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/classification
+GPU=cuda:7
+LRS="1e-4 5e-4 7e-4"          # ρ=100 精簡網格（前面已確認）
+for pair in 32:1000 64:1000 128:1000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  for lr in $LRS; do
+    for run in 1 2 3; do
+      python3 ./run_first_iter_simclr.py --task_type hard \
+        --pretrained_weights simclr --simclr_init imagenet \
+        --simclr_lr 0.0002 --simclr_bs $bs --simclr_ep $ep \
+        --portion 100 --seed 42 --lr $lr --device $GPU || true
+    done
+  done
+done
+
+
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/classification
+GPU=cuda:5
+LRS="1e-4 5e-4 7e-4"          # ρ=100 精簡網格（前面已確認）
+for pair in 32:2000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  for lr in $LRS; do
+    for run in 1 2 3; do
+      python3 ./run_first_iter_simclr.py --task_type hard \
+        --pretrained_weights simclr --simclr_init imagenet \
+        --simclr_lr 0.0002 --simclr_bs $bs --simclr_ep $ep \
+        --portion 100 --seed 42 --lr $lr --device $GPU || true
+    done
+  done
+done
+###
+
+### 6/29 中午下
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/SSL/simclr/ckpt
+for pair in 32:2000 64:2000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  ln -sf resnet18_simclr_lr0.0002_bs${bs}_ep${ep}_wval.pkl \
+         resnet18_simclr_lr0.0002_bs${bs}_ep${ep}.pkl
+  echo "linked bs${bs}_ep${ep}"
+done
+
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/classification
+GPU=cuda:2
+LRS="1e-4 5e-4 7e-4"          # ρ=100 精簡網格（前面已確認）
+for pair in 32:2000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  for lr in $LRS; do
+    for run in 1 2 3; do
+      python3 ./run_first_iter_simclr.py --task_type hard \
+        --pretrained_weights simclr --simclr_init imagenet \
+        --simclr_lr 0.0002 --simclr_bs $bs --simclr_ep $ep \
+        --portion 100 --seed 42 --lr $lr --device $GPU || true
+    done
+  done
+done
+
+
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/classification
+GPU=cuda:3
+LRS="1e-4 5e-4 7e-4"          # ρ=100 精簡網格（前面已確認）
+for pair in 64:2000; do
+  bs=${pair%:*}; ep=${pair#*:}
+  for lr in $LRS; do
+    for run in 1 2 3; do
+      python3 ./run_first_iter_simclr.py --task_type hard \
+        --pretrained_weights simclr --simclr_init imagenet \
+        --simclr_lr 0.0002 --simclr_bs $bs --simclr_ep $ep \
+        --portion 100 --seed 42 --lr $lr --device $GPU || true
+    done
+  done
+done
+
+
+###### 
+
+
+## 重新跑圖
+cd /storage/ssd3/ArthurLee/GIPO/oct-AL-1126/classification/exp/weights_init
+# python3 plot_simclr_heatmap.py --portion 100 --bar --bar_by_epoch --epochs 20 50 100 200 500 1000 2000 --fig_width 11.5
+python3 plot_simclr_heatmap.py --portion 100 --bar --bar_by_epoch --epochs 20 50 100 200 500 --fig_width 12
+```
+
+
+## 補跑: Sec. 4.5，三策略Ablation Study
+
+```bash
+# === Core-set ===
+ARM=al_only STRATEGY=coreset        DEVICE=cuda:8 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+ARM=wo_aug  STRATEGY=coreset        DEVICE=cuda:6 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+ARM=wo_init STRATEGY=coreset        DEVICE=cuda:1 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+
+# === Cluster-Margin（注意是底線 cluster_margin，連字號會被防呆擋下）===
+ARM=al_only STRATEGY=cluster_margin DEVICE=cuda:0 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+ARM=wo_aug  STRATEGY=cluster_margin DEVICE=cuda:4 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+ARM=wo_init STRATEGY=cluster_margin DEVICE=cuda:2 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+
+## p.s. 可以這樣下，這樣可以平行不同seeds，但是可能之後再下了
+SEEDS="42 57"    ARM=al_only STRATEGY=coreset DEVICE=cuda:9 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+
+SEEDS="42 57"    ARM=wo_init STRATEGY=coreset DEVICE=cuda:9 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+
+SEEDS="42 57"    ARM=wo_init STRATEGY=cluster_margin DEVICE=cuda:3 ./thesis/chapter_4/run_4_5_ablation.sh # 已下
+```
+
+檢視
+```bash
+python3 thesis/chapter_4/aggregate_4_5.py --strategy margin ### 之前的
+python3 thesis/chapter_4/aggregate_4_5.py --strategy coreset
+python3 thesis/chapter_4/aggregate_4_5.py --strategy cluster_margin
+```

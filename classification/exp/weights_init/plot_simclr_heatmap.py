@@ -655,6 +655,8 @@ def plot_grouped_bar(
     ymin=None,
     ymax=None,
     by_epoch=False,
+    fig_width=None,
+    fig_height=None,
 ):
     """
     Grouped bar chart of the SAME matrix as the heatmap（碩論樣式）。
@@ -693,7 +695,10 @@ def plot_grouped_bar(
     bar_w = total_width / max(n_ep, 1)
     colors = cm.viridis(np.linspace(0.12, 0.9, n_ep))   # 顏色 = epoch
 
-    fig, ax = plt.subplots(figsize=(max(13.5, n_bs * 2.7), 6.5))
+    # 寬度預設隨 x 群數放大；論文版可用 --fig_width 收窄（高度同理 --fig_height）。
+    _w = fig_width if fig_width is not None else max(13.5, n_bs * 2.7)
+    _h = fig_height if fig_height is not None else 6.5
+    fig, ax = plt.subplots(figsize=(_w, _h))
 
     for j, ep in enumerate(epochs):
         offsets = x - total_width / 2.0 + bar_w * (j + 0.5)
@@ -717,8 +722,8 @@ def plot_grouped_bar(
                 e = e if np.isfinite(e) else 0.0
                 txt = f"{v:.2f}\n±{e:.2f}" if e > 0 else f"{v:.2f}"
                 ax.text(
-                    xo, v + e + 0.12, txt,
-                    ha="center", va="bottom", rotation=0,
+                    xo, v + e + 0.15, txt,
+                    ha="center", va="bottom", rotation=90,
                     fontsize=8.5, color="0.15", linespacing=1.05,
                 )
 
@@ -733,7 +738,7 @@ def plot_grouped_bar(
     if finite.size > 0:
         err_max = np.nanmax(np.where(np.isfinite(std_matrix), std_matrix, 0.0))
         lo = ymin if ymin is not None else float(np.floor(finite.min()) - 1.0)
-        head = 1.3 if annotate else 0.8     # 標註文字需要額外上方空間
+        head = 3.5 if annotate else 0.8     # 直立(90°)標註文字較高，需更多上方空間
         hi = ymax if ymax is not None else float(np.ceil(finite.max() + err_max) + head)
         ax.set_ylim(lo, hi)
 
@@ -897,6 +902,21 @@ def main():
     )
 
     parser.add_argument(
+        "--fig_width",
+        type=float,
+        default=None,
+        help="Bar chart only: override figure width in inches "
+             "(default scales with number of x-groups). Use to narrow the "
+             "thesis figure when many epochs are shown.",
+    )
+    parser.add_argument(
+        "--fig_height",
+        type=float,
+        default=None,
+        help="Bar chart only: override figure height in inches (default 6.5).",
+    )
+
+    parser.add_argument(
         "--ymin",
         type=float,
         default=90.0,
@@ -955,6 +975,8 @@ def main():
             ymin=args.ymin,
             ymax=args.ymax,
             by_epoch=args.bar_by_epoch,
+            fig_width=args.fig_width,
+            fig_height=args.fig_height,
         )
     else:
         plot_heatmap(
